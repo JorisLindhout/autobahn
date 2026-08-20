@@ -2,6 +2,7 @@ export class Dashboard {
   constructor() {
     this.overlay = null;
     this.steeringWheel = null;
+    this.wheelRim = null;
     this.speedNeedle = null;
     this.rpmNeedle = null;
   }
@@ -9,6 +10,7 @@ export class Dashboard {
   create() {
     this.overlay = document.getElementById('dashboard-overlay');
     this.steeringWheel = document.getElementById('steering-wheel');
+    this.wheelRim = document.querySelector('.wheel-rim');
     this.speedNeedle = document.getElementById('speed-needle');
     this.rpmNeedle = document.getElementById('rpm-needle');
   }
