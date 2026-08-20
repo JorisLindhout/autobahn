@@ -10,8 +10,8 @@ export class Traffic {
     this.lanePositions = [-4, 0, 4];
     this.spawnDistance = -150;
     this.despawnDistance = 20;
-    this.minSpawnInterval = 0.5;
-    this.maxSpawnInterval = 2;
+    this.minSpawnInterval = 1.0;
+    this.maxSpawnInterval = 3.5;
     this.spawnTimer = 0;
     this.nextSpawnTime = 1;
     
@@ -157,7 +157,7 @@ export class Traffic {
   }
   
   update(deltaTime, playerSpeed, gameTime) {
-    const difficultyFactor = Math.min(gameTime / 60, 1);
+    const difficultyFactor = Math.min(gameTime / 120, 1);
     const spawnInterval = this.maxSpawnInterval - 
       (this.maxSpawnInterval - this.minSpawnInterval) * difficultyFactor;
     

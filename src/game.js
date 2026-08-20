@@ -4,7 +4,7 @@ import { Road } from './road.js';
 import { Traffic } from './traffic.js';
 import { Dashboard } from './dashboard.js';
 import { Collision } from './collision.js';
-import { createSky, createSun, createScenery, updateScenery } from './visuals.js';
+import { createSky, createSun, createScenery, updateScenery, resetScenery } from './visuals.js';
 
 export class Game {
   constructor(renderer) {
@@ -25,9 +25,9 @@ export class Game {
     
     this.gameState = 'title';
     this.speed = 0;
-    this.baseSpeed = 30;
-    this.maxSpeed = 120;
-    this.speedIncreaseRate = 0.5;
+    this.baseSpeed = 25;
+    this.maxSpeed = 80;
+    this.speedIncreaseRate = 0.15;
     this.playerX = 0;
     this.playerLane = 1;
     this.laneWidth = 4;
@@ -77,6 +77,7 @@ export class Game {
     this.road.reset();
     this.traffic.reset();
     this.controls.enable();
+    resetScenery();
   }
   
   stop() {
@@ -118,7 +119,7 @@ export class Game {
     
     this.traffic.update(deltaTime, this.speed, this.gameTime);
     
-    updateScenery(deltaTime);
+    updateScenery(deltaTime, this.speed);
     
     const collision = this.collision.check(
       this.playerX,

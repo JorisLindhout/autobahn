@@ -1,12 +1,26 @@
 import * as THREE from 'three';
 
 let windTurbines = [];
+let sceneryGroup = null;
+let scrollOffset = 0;
+const SCENERY_LOOP_LENGTH = 400;
+const PARALLAX_FACTOR = 0.3;
 
-export function updateScenery(deltaTime) {
+export function updateScenery(deltaTime, speed = 0) {
   for (const turbine of windTurbines) {
     if (turbine.userData.bladeGroup) {
       turbine.userData.bladeGroup.rotation.z += turbine.userData.bladeGroup.userData.rotationSpeed * deltaTime;
     }
+  }
+  
+  if (sceneryGroup && speed > 0) {
+    scrollOffset += speed * deltaTime * PARALLAX_FACTOR;
+    
+    if (scrollOffset > SCENERY_LOOP_LENGTH) {
+      scrollOffset -= SCENERY_LOOP_LENGTH;
+    }
+    
+    sceneryGroup.position.z = scrollOffset;
   }
 }
 
@@ -112,7 +126,8 @@ export function createSun() {
 }
 
 export function createScenery() {
-  const sceneryGroup = new THREE.Group();
+  sceneryGroup = new THREE.Group();
+  scrollOffset = 0;
   
   windTurbines = [];
   addRollingHills(sceneryGroup);
@@ -121,6 +136,13 @@ export function createScenery() {
   addGridFloor(sceneryGroup);
   
   return sceneryGroup;
+}
+
+export function resetScenery() {
+  scrollOffset = 0;
+  if (sceneryGroup) {
+    sceneryGroup.position.z = 0;
+  }
 }
 
 function addRollingHills(group) {
