@@ -5,7 +5,7 @@ export class Controls {
     this.enabled = false;
     
     this.calibrated = false;
-    this.calibrationGamma = 0;
+    this.calibrationBeta = 0;
     
     this.maxTiltAngle = 30;
     this.smoothing = 0.2;
@@ -18,7 +18,7 @@ export class Controls {
     this.steerInput = 0;
     this.targetSteer = 0;
     this.calibrated = false;
-    this.calibrationGamma = 0;
+    this.calibrationBeta = 0;
     
     window.addEventListener('deviceorientation', this.handleOrientation);
   }
@@ -31,17 +31,17 @@ export class Controls {
   handleOrientation(event) {
     if (!this.enabled) return;
     
-    const gamma = event.gamma || 0;
+    const beta = event.beta || 0;
     
     if (!this.calibrated) {
-      this.calibrationGamma = gamma;
+      this.calibrationBeta = beta;
       this.calibrated = true;
       return;
     }
     
-    const adjustedGamma = gamma - this.calibrationGamma;
+    const adjustedBeta = beta - this.calibrationBeta;
     
-    const normalizedTilt = Math.max(-1, Math.min(1, adjustedGamma / this.maxTiltAngle));
+    const normalizedTilt = Math.max(-1, Math.min(1, adjustedBeta / this.maxTiltAngle));
     
     const sign = Math.sign(normalizedTilt);
     const magnitude = Math.abs(normalizedTilt);
