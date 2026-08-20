@@ -4,8 +4,11 @@ export class Controls {
     this.targetSteer = 0;
     this.enabled = false;
     
-    this.gyroSensitivity = 1 / 30;
-    this.smoothing = 0.15;
+    this.calibrated = false;
+    this.calibrationGamma = 0;
+    
+    this.gyroSensitivity = 1 / 25;
+    this.smoothing = 0.12;
     
     this.handleOrientation = this.handleOrientation.bind(this);
   }
@@ -14,6 +17,8 @@ export class Controls {
     this.enabled = true;
     this.steerInput = 0;
     this.targetSteer = 0;
+    this.calibrated = false;
+    this.calibrationGamma = 0;
     
     window.addEventListener('deviceorientation', this.handleOrientation);
   }
@@ -28,7 +33,15 @@ export class Controls {
     
     const gamma = event.gamma || 0;
     
-    const clampedGamma = Math.max(-45, Math.min(45, gamma));
+    if (!this.calibrated) {
+      this.calibrationGamma = gamma;
+      this.calibrated = true;
+      return;
+    }
+    
+    const adjustedGamma = gamma - this.calibrationGamma;
+    
+    const clampedGamma = Math.max(-45, Math.min(45, adjustedGamma));
     this.targetSteer = clampedGamma * this.gyroSensitivity;
   }
   
