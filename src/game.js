@@ -56,11 +56,11 @@ export class Game {
     const scenery = createScenery();
     this.scene.add(scenery);
     
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     this.scene.add(ambientLight);
     
-    const sunLight = new THREE.DirectionalLight(0xff9944, 0.8);
-    sunLight.position.set(0, 10, -100);
+    const sunLight = new THREE.DirectionalLight(0xfffde8, 0.6);
+    sunLight.position.set(50, 100, -50);
     this.scene.add(sunLight);
     
     this.road.create();

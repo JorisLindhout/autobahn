@@ -25,7 +25,7 @@ export class Road {
     
     const roadGeometry = new THREE.PlaneGeometry(this.roadWidth, this.chunkLength);
     const roadMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x222233,
+      color: 0x505050,
       side: THREE.DoubleSide
     });
     const road = new THREE.Mesh(roadGeometry, roadMaterial);
@@ -38,7 +38,7 @@ export class Road {
     const shoulderGeometry = new THREE.PlaneGeometry(shoulderWidth, this.chunkLength);
     
     const leftShoulderMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x444455,
+      color: 0x606060,
       side: THREE.DoubleSide
     });
     const leftShoulder = new THREE.Mesh(shoulderGeometry, leftShoulderMaterial);
@@ -47,7 +47,7 @@ export class Road {
     group.add(leftShoulder);
     
     const rightShoulderMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x444455,
+      color: 0x606060,
       side: THREE.DoubleSide
     });
     const rightShoulder = new THREE.Mesh(shoulderGeometry, rightShoulderMaterial);
@@ -109,37 +109,53 @@ export class Road {
   }
   
   addRoadEdges(group) {
-    const barrierHeight = 0.5;
-    const barrierWidth = 0.3;
+    const barrierHeight = 0.4;
+    const barrierWidth = 0.15;
     const barrierGeometry = new THREE.BoxGeometry(barrierWidth, barrierHeight, this.chunkLength);
+    const guardrailMaterial = new THREE.MeshBasicMaterial({ color: 0x888888 });
     
-    const leftBarrierMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff });
-    const leftBarrier = new THREE.Mesh(barrierGeometry, leftBarrierMaterial);
-    leftBarrier.position.set(-this.roadWidth / 2 - 2.5, barrierHeight / 2, -this.chunkLength / 2);
+    const leftBarrier = new THREE.Mesh(barrierGeometry, guardrailMaterial);
+    leftBarrier.position.set(-this.roadWidth / 2 - 1.5, barrierHeight / 2 + 0.3, -this.chunkLength / 2);
     group.add(leftBarrier);
     
-    const rightBarrierMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff });
-    const rightBarrier = new THREE.Mesh(barrierGeometry, rightBarrierMaterial);
-    rightBarrier.position.set(this.roadWidth / 2 + 2.5, barrierHeight / 2, -this.chunkLength / 2);
+    const rightBarrier = new THREE.Mesh(barrierGeometry, guardrailMaterial);
+    rightBarrier.position.set(this.roadWidth / 2 + 1.5, barrierHeight / 2 + 0.3, -this.chunkLength / 2);
     group.add(rightBarrier);
+    
+    const grassWidth = 8;
+    const grassGeometry = new THREE.PlaneGeometry(grassWidth, this.chunkLength);
+    const grassMaterial = new THREE.MeshBasicMaterial({ 
+      color: 0x4a8c3a,
+      side: THREE.DoubleSide
+    });
+    
+    const leftGrass = new THREE.Mesh(grassGeometry, grassMaterial);
+    leftGrass.rotation.x = -Math.PI / 2;
+    leftGrass.position.set(-this.roadWidth / 2 - 2 - grassWidth / 2, 0.01, -this.chunkLength / 2);
+    group.add(leftGrass);
+    
+    const rightGrass = new THREE.Mesh(grassGeometry, grassMaterial);
+    rightGrass.rotation.x = -Math.PI / 2;
+    rightGrass.position.set(this.roadWidth / 2 + 2 + grassWidth / 2, 0.01, -this.chunkLength / 2);
+    group.add(rightGrass);
   }
   
   addGround(group) {
     const groundWidth = 200;
     const groundGeometry = new THREE.PlaneGeometry(groundWidth, this.chunkLength);
     const groundMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x1a0a2e,
+      color: 0x3d7a35,
       side: THREE.DoubleSide
     });
     
     const leftGround = new THREE.Mesh(groundGeometry, groundMaterial);
     leftGround.rotation.x = -Math.PI / 2;
-    leftGround.position.set(-groundWidth / 2 - this.roadWidth / 2 - 3, -0.01, -this.chunkLength / 2);
+    leftGround.position.set(-groundWidth / 2 - this.roadWidth / 2 - 12, -0.01, -this.chunkLength / 2);
     group.add(leftGround);
     
     const rightGround = new THREE.Mesh(groundGeometry, groundMaterial);
     rightGround.rotation.x = -Math.PI / 2;
-    rightGround.position.set(groundWidth / 2 + this.roadWidth / 2 + 3, -0.01, -this.chunkLength / 2);
+    rightGround.position.set(groundWidth / 2 + this.roadWidth / 2 + 12, -0.01, -this.chunkLength / 2);
     group.add(rightGround);
   }
   

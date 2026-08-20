@@ -18,7 +18,7 @@ const renderer = new THREE.WebGLRenderer({
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setClearColor(0x1a0a2e);
+renderer.setClearColor(0x87ceeb);
 
 const game = new Game(renderer);
 

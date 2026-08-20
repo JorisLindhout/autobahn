@@ -29,11 +29,11 @@ export function createSky() {
   
   const skyMaterial = new THREE.ShaderMaterial({
     uniforms: {
-      topColor: { value: new THREE.Color(0x1a0a2e) },
-      middleColor: { value: new THREE.Color(0xff6b35) },
-      bottomColor: { value: new THREE.Color(0xff9500) },
+      topColor: { value: new THREE.Color(0x4a90d9) },
+      middleColor: { value: new THREE.Color(0x87ceeb) },
+      bottomColor: { value: new THREE.Color(0xc9e4f2) },
       offset: { value: 0 },
-      exponent: { value: 0.6 }
+      exponent: { value: 0.4 }
     },
     vertexShader: `
       varying vec3 vWorldPosition;
@@ -74,55 +74,66 @@ export function createSky() {
 export function createSun() {
   const sunGroup = new THREE.Group();
   
-  const sunGeometry = new THREE.CircleGeometry(40, 32);
-  const sunMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-      color1: { value: new THREE.Color(0xffff00) },
-      color2: { value: new THREE.Color(0xff6600) }
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform vec3 color1;
-      uniform vec3 color2;
-      varying vec2 vUv;
-      
-      void main() {
-        float dist = length(vUv - 0.5) * 2.0;
-        vec3 color = mix(color1, color2, dist);
-        
-        // Add horizontal lines for retro effect
-        float lines = mod(gl_FragCoord.y, 8.0);
-        if (lines < 2.0 && dist < 0.8) {
-          color *= 0.7;
-        }
-        
-        gl_FragColor = vec4(color, 1.0);
-      }
-    `,
-    transparent: true
+  const sunGeometry = new THREE.CircleGeometry(25, 32);
+  const sunMaterial = new THREE.MeshBasicMaterial({
+    color: 0xfffde8,
+    transparent: true,
+    opacity: 0.9
   });
   
   const sun = new THREE.Mesh(sunGeometry, sunMaterial);
-  sun.position.set(0, 30, -400);
+  sun.position.set(100, 80, -400);
   sunGroup.add(sun);
   
-  const glowGeometry = new THREE.CircleGeometry(60, 32);
+  const glowGeometry = new THREE.CircleGeometry(40, 32);
   const glowMaterial = new THREE.MeshBasicMaterial({
-    color: 0xff6600,
+    color: 0xffffcc,
     transparent: true,
     opacity: 0.3
   });
   const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-  glow.position.set(0, 30, -401);
+  glow.position.set(100, 80, -401);
   sunGroup.add(glow);
   
+  addClouds(sunGroup);
+  
   return sunGroup;
+}
+
+function addClouds(group) {
+  const cloudMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.9
+  });
+  
+  const cloudPositions = [
+    { x: -150, y: 60, z: -300, scale: 1.2 },
+    { x: 50, y: 70, z: -350, scale: 1.0 },
+    { x: 200, y: 55, z: -280, scale: 0.8 },
+    { x: -80, y: 75, z: -400, scale: 1.1 },
+    { x: 150, y: 65, z: -380, scale: 0.9 },
+  ];
+  
+  for (const pos of cloudPositions) {
+    const cloudGroup = new THREE.Group();
+    
+    for (let i = 0; i < 5; i++) {
+      const size = (8 + Math.random() * 6) * pos.scale;
+      const puffGeometry = new THREE.SphereGeometry(size, 8, 8);
+      const puff = new THREE.Mesh(puffGeometry, cloudMaterial);
+      puff.position.set(
+        (Math.random() - 0.5) * 20 * pos.scale,
+        (Math.random() - 0.5) * 5 * pos.scale,
+        (Math.random() - 0.5) * 10 * pos.scale
+      );
+      puff.scale.y = 0.6;
+      cloudGroup.add(puff);
+    }
+    
+    cloudGroup.position.set(pos.x, pos.y, pos.z);
+    group.add(cloudGroup);
+  }
 }
 
 export function createScenery() {
@@ -147,7 +158,7 @@ export function resetScenery() {
 
 function addRollingHills(group) {
   const hillMaterial = new THREE.MeshBasicMaterial({ 
-    color: 0x1a2a1a,
+    color: 0x4a7c3f,
     side: THREE.DoubleSide
   });
   
@@ -170,7 +181,7 @@ function addRollingHills(group) {
     group.add(hill);
   }
   
-  const farHillMaterial = new THREE.MeshBasicMaterial({ color: 0x2d1b4e });
+  const farHillMaterial = new THREE.MeshBasicMaterial({ color: 0x6b8e6b });
   for (let i = 0; i < 8; i++) {
     const geometry = new THREE.SphereGeometry(150, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
     const hill = new THREE.Mesh(geometry, farHillMaterial);
@@ -181,8 +192,8 @@ function addRollingHills(group) {
 }
 
 function addPoplars(group) {
-  const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x2a1a0a });
-  const foliageMaterial = new THREE.MeshBasicMaterial({ color: 0x0a1a0a });
+  const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x4a3728 });
+  const foliageMaterial = new THREE.MeshBasicMaterial({ color: 0x2d5a27 });
   
   const treePositions = [];
   for (let z = -40; z > -400; z -= 25) {
@@ -265,33 +276,15 @@ function addWindTurbines(group, turbineArray) {
 }
 
 function addGridFloor(group) {
-  const gridSize = 500;
-  const gridDivisions = 50;
-  
-  const gridMaterial = new THREE.LineBasicMaterial({ 
-    color: 0xff00ff,
-    transparent: true,
-    opacity: 0.3
+  const floorSize = 1000;
+  const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
+  const floorMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0x3d7a35,
+    side: THREE.DoubleSide
   });
   
-  const points = [];
-  const step = gridSize / gridDivisions;
-  const half = gridSize / 2;
-  
-  for (let i = 0; i <= gridDivisions; i++) {
-    const pos = -half + i * step;
-    points.push(new THREE.Vector3(-half, -0.1, pos));
-    points.push(new THREE.Vector3(half, -0.1, pos));
-  }
-  
-  for (let i = 0; i <= gridDivisions; i++) {
-    const pos = -half + i * step;
-    points.push(new THREE.Vector3(pos, -0.1, -half));
-    points.push(new THREE.Vector3(pos, -0.1, half));
-  }
-  
-  const gridGeometry = new THREE.BufferGeometry().setFromPoints(points);
-  const grid = new THREE.LineSegments(gridGeometry, gridMaterial);
-  grid.position.z = -250;
-  group.add(grid);
+  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, -0.1, -400);
+  group.add(floor);
 }
