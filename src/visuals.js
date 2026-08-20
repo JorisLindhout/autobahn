@@ -1,5 +1,15 @@
 import * as THREE from 'three';
 
+let windTurbines = [];
+
+export function updateScenery(deltaTime) {
+  for (const turbine of windTurbines) {
+    if (turbine.userData.bladeGroup) {
+      turbine.userData.bladeGroup.rotation.z += turbine.userData.bladeGroup.userData.rotationSpeed * deltaTime;
+    }
+  }
+}
+
 export function createSky() {
   const skyGeometry = new THREE.SphereGeometry(500, 32, 32);
   
@@ -104,71 +114,131 @@ export function createSun() {
 export function createScenery() {
   const sceneryGroup = new THREE.Group();
   
-  addMountains(sceneryGroup);
-  addPalmTrees(sceneryGroup);
+  windTurbines = [];
+  addRollingHills(sceneryGroup);
+  addPoplars(sceneryGroup);
+  addWindTurbines(sceneryGroup, windTurbines);
   addGridFloor(sceneryGroup);
   
   return sceneryGroup;
 }
 
-function addMountains(group) {
-  const mountainMaterial = new THREE.MeshBasicMaterial({ 
-    color: 0x2d1b4e,
+function addRollingHills(group) {
+  const hillMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0x1a2a1a,
     side: THREE.DoubleSide
   });
   
-  const mountainPositions = [
-    { x: -200, z: -350, width: 150, height: 60 },
-    { x: -80, z: -380, width: 120, height: 45 },
-    { x: 50, z: -360, width: 100, height: 55 },
-    { x: 180, z: -370, width: 140, height: 50 },
-    { x: -150, z: -400, width: 180, height: 70 },
-    { x: 120, z: -420, width: 160, height: 65 },
+  const hillPositions = [
+    { x: -180, z: -300, width: 200, height: 25 },
+    { x: -60, z: -350, width: 180, height: 20 },
+    { x: 100, z: -320, width: 220, height: 30 },
+    { x: 200, z: -380, width: 160, height: 22 },
+    { x: -120, z: -400, width: 250, height: 35 },
+    { x: 80, z: -420, width: 200, height: 28 },
+    { x: -200, z: -450, width: 300, height: 40 },
+    { x: 150, z: -480, width: 280, height: 38 },
   ];
   
-  for (const pos of mountainPositions) {
-    const geometry = new THREE.ConeGeometry(pos.width / 2, pos.height, 4);
-    const mountain = new THREE.Mesh(geometry, mountainMaterial);
-    mountain.position.set(pos.x, pos.height / 2 - 5, pos.z);
-    mountain.rotation.y = Math.random() * Math.PI;
-    group.add(mountain);
+  for (const pos of hillPositions) {
+    const geometry = new THREE.SphereGeometry(pos.width / 2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const hill = new THREE.Mesh(geometry, hillMaterial);
+    hill.scale.y = pos.height / (pos.width / 2);
+    hill.position.set(pos.x, 0, pos.z);
+    group.add(hill);
+  }
+  
+  const farHillMaterial = new THREE.MeshBasicMaterial({ color: 0x2d1b4e });
+  for (let i = 0; i < 8; i++) {
+    const geometry = new THREE.SphereGeometry(150, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+    const hill = new THREE.Mesh(geometry, farHillMaterial);
+    hill.scale.y = 0.15;
+    hill.position.set(-400 + i * 120, 0, -500);
+    group.add(hill);
   }
 }
 
-function addPalmTrees(group) {
-  const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x1a0a1a });
-  const leafMaterial = new THREE.MeshBasicMaterial({ color: 0x0a0a1a });
+function addPoplars(group) {
+  const trunkMaterial = new THREE.MeshBasicMaterial({ color: 0x2a1a0a });
+  const foliageMaterial = new THREE.MeshBasicMaterial({ color: 0x0a1a0a });
   
   const treePositions = [];
-  for (let z = -50; z > -350; z -= 30) {
-    treePositions.push({ x: -25, z: z + Math.random() * 10 });
-    treePositions.push({ x: 25, z: z + Math.random() * 10 });
+  for (let z = -40; z > -400; z -= 25) {
+    if (Math.random() > 0.3) {
+      treePositions.push({ x: -18 - Math.random() * 5, z: z + Math.random() * 8, height: 12 + Math.random() * 6 });
+    }
+    if (Math.random() > 0.3) {
+      treePositions.push({ x: 18 + Math.random() * 5, z: z + Math.random() * 8, height: 12 + Math.random() * 6 });
+    }
   }
   
   for (const pos of treePositions) {
     const treeGroup = new THREE.Group();
     
-    const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.5, 8, 6);
+    const trunkGeometry = new THREE.CylinderGeometry(0.15, 0.25, pos.height * 0.9, 6);
     const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-    trunk.position.y = 4;
+    trunk.position.y = pos.height * 0.45;
     treeGroup.add(trunk);
     
-    for (let i = 0; i < 5; i++) {
-      const leafGeometry = new THREE.ConeGeometry(3, 4, 4);
-      const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
-      const angle = (i / 5) * Math.PI * 2;
-      leaf.position.set(
-        Math.cos(angle) * 1.5,
-        7 + Math.random(),
-        Math.sin(angle) * 1.5
-      );
-      leaf.rotation.x = 0.5;
-      leaf.rotation.z = Math.cos(angle) * 0.5;
-      treeGroup.add(leaf);
-    }
+    const foliageGeometry = new THREE.ConeGeometry(1.2, pos.height * 0.85, 8);
+    const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+    foliage.position.y = pos.height * 0.55;
+    treeGroup.add(foliage);
+    
+    const topGeometry = new THREE.ConeGeometry(0.6, pos.height * 0.3, 6);
+    const top = new THREE.Mesh(topGeometry, foliageMaterial);
+    top.position.y = pos.height * 0.9;
+    treeGroup.add(top);
     
     treeGroup.position.set(pos.x, 0, pos.z);
     group.add(treeGroup);
+  }
+}
+
+function addWindTurbines(group, turbineArray) {
+  const poleMaterial = new THREE.MeshBasicMaterial({ color: 0x333344 });
+  const bladeMaterial = new THREE.MeshBasicMaterial({ color: 0x444455 });
+  
+  const turbinePositions = [
+    { x: -80, z: -250 },
+    { x: 90, z: -300 },
+    { x: -120, z: -380 },
+    { x: 60, z: -420 },
+  ];
+  
+  for (const pos of turbinePositions) {
+    const turbineGroup = new THREE.Group();
+    
+    const poleGeometry = new THREE.CylinderGeometry(0.3, 0.5, 25, 8);
+    const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+    pole.position.y = 12.5;
+    turbineGroup.add(pole);
+    
+    const hubGeometry = new THREE.SphereGeometry(0.8, 8, 8);
+    const hub = new THREE.Mesh(hubGeometry, poleMaterial);
+    hub.position.set(0, 25, -0.5);
+    turbineGroup.add(hub);
+    
+    const bladeGroup = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const bladeGeometry = new THREE.BoxGeometry(0.3, 10, 0.1);
+      const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+      blade.position.y = 5;
+      blade.geometry.translate(0, 5, 0);
+      
+      const bladeHolder = new THREE.Group();
+      bladeHolder.add(blade);
+      bladeHolder.rotation.z = (i / 3) * Math.PI * 2;
+      bladeGroup.add(bladeHolder);
+    }
+    bladeGroup.position.set(0, 25, -1.3);
+    bladeGroup.userData.rotationSpeed = 0.5 + Math.random() * 0.3;
+    turbineGroup.add(bladeGroup);
+    
+    turbineGroup.position.set(pos.x, 0, pos.z);
+    turbineGroup.userData.bladeGroup = bladeGroup;
+    group.add(turbineGroup);
+    turbineArray.push(turbineGroup);
   }
 }
 

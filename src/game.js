@@ -4,7 +4,7 @@ import { Road } from './road.js';
 import { Traffic } from './traffic.js';
 import { Dashboard } from './dashboard.js';
 import { Collision } from './collision.js';
-import { createSky, createSun, createScenery } from './visuals.js';
+import { createSky, createSun, createScenery, updateScenery } from './visuals.js';
 
 export class Game {
   constructor(renderer) {
@@ -117,6 +117,8 @@ export class Game {
     this.road.update(deltaTime, this.speed);
     
     this.traffic.update(deltaTime, this.speed, this.gameTime);
+    
+    updateScenery(deltaTime);
     
     const collision = this.collision.check(
       this.playerX,
