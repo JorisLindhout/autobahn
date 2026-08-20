@@ -7,8 +7,8 @@ export class Controls {
     this.calibrated = false;
     this.calibrationGamma = 0;
     
-    this.gyroSensitivity = 1 / 25;
-    this.smoothing = 0.12;
+    this.maxTiltAngle = 30;
+    this.smoothing = 0.2;
     
     this.handleOrientation = this.handleOrientation.bind(this);
   }
@@ -41,8 +41,13 @@ export class Controls {
     
     const adjustedGamma = gamma - this.calibrationGamma;
     
-    const clampedGamma = Math.max(-45, Math.min(45, adjustedGamma));
-    this.targetSteer = clampedGamma * this.gyroSensitivity;
+    const normalizedTilt = Math.max(-1, Math.min(1, adjustedGamma / this.maxTiltAngle));
+    
+    const sign = Math.sign(normalizedTilt);
+    const magnitude = Math.abs(normalizedTilt);
+    const curved = Math.pow(magnitude, 1.5);
+    
+    this.targetSteer = sign * curved;
   }
   
   getSteerInput() {

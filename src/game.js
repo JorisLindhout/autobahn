@@ -104,7 +104,7 @@ export class Game {
     );
     
     const steerInput = this.controls.getSteerInput();
-    const steerSpeed = 8;
+    const steerSpeed = 12;
     const maxX = (this.roadWidth / 2) - 1;
     
     this.playerX += steerInput * steerSpeed * deltaTime;
