@@ -3,8 +3,8 @@ import * as THREE from 'three';
 let windTurbines = [];
 let sceneryGroup = null;
 let scrollOffset = 0;
-const SCENERY_LOOP_LENGTH = 400;
-const PARALLAX_FACTOR = 0.3;
+const SCENERY_LOOP_LENGTH = 600;
+const PARALLAX_FACTOR = 0.15;
 
 export function updateScenery(deltaTime, speed = 0) {
   for (const turbine of windTurbines) {
@@ -152,14 +152,14 @@ function addRollingHills(group) {
   });
   
   const hillPositions = [
-    { x: -180, z: -300, width: 200, height: 25 },
-    { x: -60, z: -350, width: 180, height: 20 },
-    { x: 100, z: -320, width: 220, height: 30 },
-    { x: 200, z: -380, width: 160, height: 22 },
-    { x: -120, z: -400, width: 250, height: 35 },
-    { x: 80, z: -420, width: 200, height: 28 },
-    { x: -200, z: -450, width: 300, height: 40 },
-    { x: 150, z: -480, width: 280, height: 38 },
+    { x: -180, z: -500, width: 200, height: 25 },
+    { x: -60, z: -550, width: 180, height: 20 },
+    { x: 100, z: -520, width: 220, height: 30 },
+    { x: 200, z: -580, width: 160, height: 22 },
+    { x: -120, z: -600, width: 250, height: 35 },
+    { x: 80, z: -620, width: 200, height: 28 },
+    { x: -200, z: -650, width: 300, height: 40 },
+    { x: 150, z: -680, width: 280, height: 38 },
   ];
   
   for (const pos of hillPositions) {
@@ -175,7 +175,7 @@ function addRollingHills(group) {
     const geometry = new THREE.SphereGeometry(150, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
     const hill = new THREE.Mesh(geometry, farHillMaterial);
     hill.scale.y = 0.15;
-    hill.position.set(-400 + i * 120, 0, -500);
+    hill.position.set(-400 + i * 120, 0, -750);
     group.add(hill);
   }
 }
@@ -222,10 +222,10 @@ function addWindTurbines(group, turbineArray) {
   const bladeMaterial = new THREE.MeshBasicMaterial({ color: 0x444455 });
   
   const turbinePositions = [
-    { x: -80, z: -250 },
-    { x: 90, z: -300 },
-    { x: -120, z: -380 },
-    { x: 60, z: -420 },
+    { x: -100, z: -350 },
+    { x: 110, z: -420 },
+    { x: -130, z: -500 },
+    { x: 90, z: -580 },
   ];
   
   for (const pos of turbinePositions) {
