@@ -47,7 +47,7 @@ export class Controls {
     const magnitude = Math.abs(normalizedTilt);
     const curved = Math.pow(magnitude, 1.5);
     
-    this.targetSteer = sign * curved;
+    this.targetSteer = -sign * curved;
   }
   
   getSteerInput() {
