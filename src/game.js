@@ -20,7 +20,7 @@ export class Game {
     this.controls = new Controls();
     this.road = new Road(this.scene);
     this.traffic = new Traffic(this.scene);
-    this.dashboard = new Dashboard(this.scene, this.camera);
+    this.dashboard = new Dashboard();
     this.collision = new Collision();
     
     this.gameState = 'title';
@@ -77,12 +77,14 @@ export class Game {
     this.road.reset();
     this.traffic.reset();
     this.controls.enable();
+    this.dashboard.show();
     resetScenery();
   }
   
   stop() {
     this.gameState = 'gameover';
     this.controls.disable();
+    this.dashboard.hide();
     
     if (this.onGameOver) {
       this.onGameOver();
