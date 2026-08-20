@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="screen-orientation" content="landscape">
+  <meta name="theme-color" content="#1a0a2e">
+  <title>Autobahn</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    
+    <div id="dashboard-overlay">
+      <div id="left-panel"></div>
+      <div id="right-panel"></div>
+      <div id="dash-bottom">
+        <div id="steering-wheel">
+          <div class="wheel-rim">
+            <div class="wheel-spoke spoke-1"></div>
+            <div class="wheel-spoke spoke-2"></div>
+            <div class="wheel-spoke spoke-3"></div>
+            <div class="wheel-center"></div>
+          </div>
+        </div>
+        <div id="gauge-cluster">
+          <div class="gauge" id="rpm-gauge">
+            <div class="gauge-face">
+              <div class="gauge-needle" id="rpm-needle"></div>
+            </div>
+            <span class="gauge-label">RPM</span>
+          </div>
+          <div class="gauge" id="speed-gauge">
+            <div class="gauge-face">
+              <div class="gauge-needle" id="speed-needle"></div>
+            </div>
+            <span class="gauge-label">KMH</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div id="title-screen" class="screen">
+      <h1>AUTOBAHN</h1>
+      <p class="subtitle">OUTRUN EDITION</p>
+      <button id="start-button">TAP TO START</button>
+      <p class="hint">Tilt your phone to steer</p>
+    </div>
+    
+    <div id="game-over-screen" class="screen hidden">
+      <h2>GAME OVER</h2>
+      <button id="restart-button">TAP TO RETRY</button>
+    </div>
+    
+    <div id="permission-prompt" class="screen hidden">
+      <p>This game requires motion sensors</p>
+      <button id="permission-button">ENABLE MOTION</button>
+    </div>
+    
+    <div id="no-gyro-screen" class="screen hidden">
+      <h2>NO GYROSCOPE</h2>
+      <p>Your device doesn't have motion sensors</p>
+      <p class="hint">This game requires a mobile device with gyroscope</p>
+    </div>
+    
+    <div id="desktop-screen" class="screen hidden">
+      <h2>MOBILE ONLY</h2>
+      <p>This game requires a mobile device</p>
+      <p class="hint">Please open on your phone or tablet</p>
+      <div class="qr-hint">Scan the QR code or visit this URL on mobile</div>
+    </div>
+    
+    <div id="rotate-screen" class="overlay">
+      <div class="rotate-content">
+        <div class="phone-icon">
+          <div class="phone-body"></div>
+          <div class="rotate-arrow">↻</div>
+        </div>
+        <p>Please rotate your device</p>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
