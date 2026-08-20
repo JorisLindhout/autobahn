@@ -67,7 +67,7 @@ export class Game {
     this.dashboard.create();
   }
   
-  start(forceTouchControls = false) {
+  start() {
     this.gameState = 'playing';
     this.speed = this.baseSpeed;
     this.playerX = 0;
@@ -76,7 +76,7 @@ export class Game {
     
     this.road.reset();
     this.traffic.reset();
-    this.controls.enable(forceTouchControls);
+    this.controls.enable();
   }
   
   stop() {

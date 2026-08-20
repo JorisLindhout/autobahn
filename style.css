@@ -236,7 +236,8 @@ button {
 }
 
 /* No gyro screen styling */
-#no-gyro-screen p {
+#no-gyro-screen p,
+#desktop-screen p {
   font-size: 1.1rem;
   color: #ffffff;
   margin-bottom: 1rem;
@@ -244,8 +245,15 @@ button {
   padding: 0 2rem;
 }
 
-#no-gyro-screen .hint {
-  color: #00ff66;
-  text-shadow: 0 0 5px #00ff66;
-  margin-bottom: 2rem;
+#no-gyro-screen .hint,
+#desktop-screen .hint {
+  color: #ff6600;
+  text-shadow: 0 0 5px #ff6600;
+  margin-bottom: 1rem;
+}
+
+#desktop-screen .qr-hint {
+  font-size: 0.9rem;
+  color: #888;
+  margin-top: 2rem;
 }

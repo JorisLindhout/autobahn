@@ -6,10 +6,10 @@ const titleScreen = document.getElementById('title-screen');
 const gameOverScreen = document.getElementById('game-over-screen');
 const permissionPrompt = document.getElementById('permission-prompt');
 const noGyroScreen = document.getElementById('no-gyro-screen');
+const desktopScreen = document.getElementById('desktop-screen');
 const startButton = document.getElementById('start-button');
 const restartButton = document.getElementById('restart-button');
 const permissionButton = document.getElementById('permission-button');
-const noGyroStartButton = document.getElementById('no-gyro-start');
 
 const renderer = new THREE.WebGLRenderer({ 
   canvas, 
@@ -24,13 +24,23 @@ const game = new Game(renderer);
 
 let hasGyroscope = false;
 let gyroChecked = false;
-let useTouchControls = false;
+
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
+}
 
 function hideAllScreens() {
   titleScreen.classList.add('hidden');
   gameOverScreen.classList.add('hidden');
   permissionPrompt.classList.add('hidden');
   noGyroScreen.classList.add('hidden');
+  desktopScreen.classList.add('hidden');
+}
+
+function showDesktopScreen() {
+  hideAllScreens();
+  desktopScreen.classList.remove('hidden');
 }
 
 function showTitleScreen() {
@@ -91,6 +101,11 @@ async function requestMotionPermission() {
 }
 
 async function startGame() {
+  if (!isMobileDevice()) {
+    showDesktopScreen();
+    return;
+  }
+  
   const hasPermission = await requestMotionPermission();
   
   if (!hasPermission) {
@@ -103,13 +118,13 @@ async function startGame() {
     gyroChecked = true;
   }
   
-  if (!hasGyroscope && !useTouchControls) {
+  if (!hasGyroscope) {
     showNoGyroScreen();
     return;
   }
   
   hideAllScreens();
-  game.start(useTouchControls);
+  game.start();
 }
 
 game.onGameOver = () => {
@@ -118,8 +133,8 @@ game.onGameOver = () => {
 
 startButton.addEventListener('click', startGame);
 restartButton.addEventListener('click', () => {
-  game.start(useTouchControls);
   hideAllScreens();
+  game.start();
 });
 
 permissionButton.addEventListener('click', async () => {
@@ -132,15 +147,9 @@ permissionButton.addEventListener('click', async () => {
       showNoGyroScreen();
     } else {
       hideAllScreens();
-      game.start(false);
+      game.start();
     }
   }
-});
-
-noGyroStartButton.addEventListener('click', () => {
-  useTouchControls = true;
-  hideAllScreens();
-  game.start(true);
 });
 
 window.addEventListener('resize', () => {
