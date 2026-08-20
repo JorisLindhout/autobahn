@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="screen-orientation" content="landscape">
+  <meta name="theme-color" content="#1a0a2e">
+  <title>Autobahn</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="game-container">
+    <canvas id="game-canvas"></canvas>
+    
+    <div id="title-screen" class="screen">
+      <h1>AUTOBAHN</h1>
+      <p class="subtitle">OUTRUN EDITION</p>
+      <button id="start-button">TAP TO START</button>
+      <p class="hint">Tilt your phone to steer</p>
+    </div>
+    
+    <div id="game-over-screen" class="screen hidden">
+      <h2>GAME OVER</h2>
+      <button id="restart-button">TAP TO RETRY</button>
+    </div>
+    
+    <div id="permission-prompt" class="screen hidden">
+      <p>This game requires motion sensors</p>
+      <button id="permission-button">ENABLE MOTION</button>
+    </div>
+    
+    <div id="no-gyro-screen" class="screen hidden">
+      <h2>NO GYROSCOPE</h2>
+      <p>Your device doesn't have motion sensors</p>
+      <p class="hint">Touch controls enabled instead</p>
+      <button id="no-gyro-start">CONTINUE WITH TOUCH</button>
+    </div>
+    
+    <div id="rotate-screen" class="overlay">
+      <div class="rotate-content">
+        <div class="phone-icon">
+          <div class="phone-body"></div>
+          <div class="rotate-arrow">↻</div>
+        </div>
+        <p>Please rotate your device</p>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

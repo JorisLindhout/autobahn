@@ -1,0 +1,17 @@
+{
+  "name": "autobahn",
+  "version": "1.0.0",
+  "description": "Autobahn - Outrun-style mobile highway racing game with gyroscope controls",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
