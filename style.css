@@ -9,7 +9,9 @@ html, body {
   height: 100%;
   overflow: hidden;
   background: #1a3a5c;
-  font-family: 'Courier New', monospace;
+  font-family: "Germania One", system-ui;
+  font-weight: 400;
+  font-style: normal;
   touch-action: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -271,9 +273,10 @@ h2 {
 }
 
 button {
-  font-family: 'Courier New', monospace;
+  font-family: "Germania One", system-ui;
+  font-weight: 400;
+  font-style: normal;
   font-size: 1.5rem;
-  font-weight: bold;
   padding: 1rem 2rem;
   background: transparent;
   border: 3px solid #00ffff;
