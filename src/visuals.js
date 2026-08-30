@@ -25,90 +25,132 @@ export function updateScenery(deltaTime, speed = 0) {
   }
 }
 
-/* Realistic procedural overcast cloud sky texture generator */
+/* Realistic high-contrast 80s overcast cloud sky texture generator */
 function createCloudTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 1024;
   canvas.height = 512;
   const ctx = canvas.getContext('2d');
 
-  // Base sky gradient: darker slate/charcoal zenith to luminous silver horizon
+  // Base sky: cold northern 80s slate blue-gray zenith to hazy silver horizon
   const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0.0, '#3e4956');
-  gradient.addColorStop(0.35, '#5b6775');
-  gradient.addColorStop(0.70, '#8693a1');
-  gradient.addColorStop(1.0, '#b2bcc6');
+  gradient.addColorStop(0.0, '#43505e');
+  gradient.addColorStop(0.4, '#5e6d7d');
+  gradient.addColorStop(0.75, '#8b98a6');
+  gradient.addColorStop(1.0, '#b6c0cb');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Layered cloudy atmosphere noise
-  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imgData.data;
-
-  // Simple multi-frequency value noise for realistic overcast cloud banks
-  function noise2D(x, y) {
-    const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453123;
-    return n - Math.floor(n);
+  // High quality Perlin-style gradient noise for distinct, billowing cloud banks
+  const p = new Uint8Array(512);
+  const permutation = [
+    151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,
+    8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,
+    35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,
+    134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,
+    55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,
+    18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,
+    250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,
+    189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,
+    172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,
+    228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,
+    107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,
+    138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180
+  ];
+  for (let i = 0; i < 256; i++) {
+    p[256 + i] = p[i] = permutation[i];
   }
 
-  function smoothNoise(x, y, freq) {
-    const fx = x * freq;
-    const fy = y * freq;
-    const ix = Math.floor(fx);
-    const iy = Math.floor(fy);
-    const fracX = fx - ix;
-    const fracY = fy - iy;
-
-    // Smoothstep interpolation
-    const sx = fracX * fracX * (3 - 2 * fracX);
-    const sy = fracY * fracY * (3 - 2 * fracY);
-
-    const n00 = noise2D(ix, iy);
-    const n10 = noise2D(ix + 1, iy);
-    const n01 = noise2D(ix, iy + 1);
-    const n11 = noise2D(ix + 1, iy + 1);
-
-    const nx0 = n00 * (1 - sx) + n10 * sx;
-    const nx1 = n01 * (1 - sx) + n11 * sx;
-    return nx0 * (1 - sy) + nx1 * sy;
+  function fade(t) { return t * t * t * (t * (t * 6 - 15) + 10); }
+  function lerp(t, a, b) { return a + t * (b - a); }
+  function grad(hash, x, y) {
+    const h = hash & 7;
+    const u = h < 4 ? x : y;
+    const v = h < 4 ? y : x;
+    return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
   }
 
-  function fbm(x, y) {
+  function perlin2D(x, y) {
+    const X = Math.floor(x) & 255;
+    const Y = Math.floor(y) & 255;
+    const xf = x - Math.floor(x);
+    const yf = y - Math.floor(y);
+    const u = fade(xf);
+    const v = fade(yf);
+    const A = p[X] + Y;
+    const B = p[X + 1] + Y;
+    return lerp(v,
+      lerp(u, grad(p[A], xf, yf), grad(p[B], xf - 1, yf)),
+      lerp(u, grad(p[A + 1], xf, yf - 1), grad(p[B + 1], xf - 1, yf - 1))
+    );
+  }
+
+  function cloudFBM(x, y) {
     let total = 0;
-    let amp = 0.5;
-    let freq = 0.006;
-    for (let o = 0; o < 4; o++) {
-      total += smoothNoise(x, y, freq) * amp;
-      freq *= 2.2;
-      amp *= 0.48;
+    let amp = 0.55;
+    let freq = 1.0;
+    for (let o = 0; o < 5; o++) {
+      total += perlin2D(x * freq, y * freq) * amp;
+      freq *= 2.1;
+      amp *= 0.52;
     }
     return total;
   }
 
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imgData.data;
+
+  // Render thick, stratified 80s cloud formations
   for (let y = 0; y < canvas.height; y++) {
-    const normY = y / canvas.height;
-    // Cloud density stronger in mid/upper sky, hazy mist at horizon
-    const horizonFade = Math.sin(normY * Math.PI * 0.95);
+    const normY = y / canvas.height; // 0 (top/zenith) to 1 (horizon)
+    const altitudeScale = 1.0 - normY * 0.5;
 
     for (let x = 0; x < canvas.width; x++) {
+      const normX = x / canvas.width;
       const idx = (y * canvas.width + x) * 4;
-      const cloudVal = fbm(x, y * 1.6);
-      const cloudPuff = (cloudVal - 0.45) * 110 * horizonFade;
 
-      data[idx] = Math.min(255, Math.max(0, data[idx] + cloudPuff * 0.92));
-      data[idx + 1] = Math.min(255, Math.max(0, data[idx + 1] + cloudPuff * 0.96));
-      data[idx + 2] = Math.min(255, Math.max(0, data[idx + 2] + cloudPuff * 1.02));
+      // Coordinate scaling for natural atmospheric perspective
+      const nx = normX * 6.0;
+      const ny = normY * 4.0;
+
+      // Primary cloud density
+      const rawNoise = cloudFBM(nx, ny * 1.5);
+      // Secondary billow modulation (turbulence)
+      const detailNoise = perlin2D(nx * 5.0 + rawNoise * 1.5, ny * 5.0);
+      const cloudVal = rawNoise + detailNoise * 0.25;
+
+      // Cloud density shaping: billowy tops, darker undersides
+      const cloudCover = Math.sin(normY * Math.PI * 0.9);
+      const shaped = (cloudVal + 0.15) * 1.8 * cloudCover;
+
+      if (shaped > 0) {
+        // Upper rim highlight (silver sunlight catching cloud crests)
+        const highlight = Math.max(0, shaped - 0.25) * 65 * altitudeScale;
+        // Darker belly shadow (dense stratified cloud bottom)
+        const shadow = Math.max(0, -shaped - 0.1) * 40;
+
+        data[idx]     = Math.min(255, Math.max(0, data[idx]     + highlight * 0.95 - shadow));
+        data[idx + 1] = Math.min(255, Math.max(0, data[idx + 1] + highlight * 0.98 - shadow));
+        data[idx + 2] = Math.min(255, Math.max(0, data[idx + 2] + highlight * 1.05 - shadow * 0.8));
+      } else {
+        // Subtle darker gaps between cloud banks
+        const shadow = Math.min(45, -shaped * 35);
+        data[idx]     = Math.max(0, data[idx]     - shadow * 0.9);
+        data[idx + 1] = Math.max(0, data[idx + 1] - shadow * 0.9);
+        data[idx + 2] = Math.max(0, data[idx + 2] - shadow * 0.8);
+      }
     }
   }
   ctx.putImageData(imgData, 0, 0);
 
-  // Soft diffused sun halo behind the cloud ceiling (realistic atmospheric glow)
-  const sunX = canvas.width * 0.62;
-  const sunY = canvas.height * 0.42;
-  const sunGlow = ctx.createRadialGradient(sunX, sunY, 15, sunX, sunY, 180);
-  sunGlow.addColorStop(0.0, 'rgba(240, 244, 250, 0.45)');
-  sunGlow.addColorStop(0.3, 'rgba(220, 228, 238, 0.22)');
-  sunGlow.addColorStop(1.0, 'rgba(180, 192, 204, 0.0)');
+  // Soft diffused overcast sunlight breaking through cloud deck
+  const sunX = canvas.width * 0.58;
+  const sunY = canvas.height * 0.35;
+  const sunGlow = ctx.createRadialGradient(sunX, sunY, 20, sunX, sunY, 220);
+  sunGlow.addColorStop(0.0, 'rgba(255, 255, 255, 0.40)');
+  sunGlow.addColorStop(0.25, 'rgba(235, 242, 250, 0.22)');
+  sunGlow.addColorStop(0.65, 'rgba(200, 215, 230, 0.08)');
+  sunGlow.addColorStop(1.0, 'rgba(180, 195, 210, 0.0)');
   ctx.fillStyle = sunGlow;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -126,7 +168,8 @@ export function createSky() {
   const skyMaterial = new THREE.MeshBasicMaterial({
     map: skyTexture,
     side: THREE.BackSide,
-    depthWrite: false
+    depthWrite: false,
+    fog: false // Prevent scene depth fog from overriding sky cloud texture
   });
   
   const sky = new THREE.Mesh(skyGeometry, skyMaterial);
