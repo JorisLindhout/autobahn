@@ -18,7 +18,7 @@ export class Game {
     );
     
     this.controls = new Controls();
-    this.road = new Road(this.scene);
+    this.road = new Road(this.scene, this.renderer);
     this.traffic = new Traffic(this.scene);
     this.cockpit = new Cockpit(this.camera);
     this.collision = new Collision();
@@ -47,6 +47,9 @@ export class Game {
     this.camera.position.set(0, 1.5, 0);
     this.camera.rotation.set(0, 0, 0);
     
+    // Realistic 80s overcast Autobahn atmosphere with distant horizon haze
+    this.scene.fog = new THREE.Fog(0x9faab4, 120, 650);
+    
     const sky = createSky();
     this.scene.add(sky);
     
@@ -56,11 +59,12 @@ export class Game {
     const scenery = createScenery();
     this.scene.add(scenery);
     
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    this.scene.add(ambientLight);
+    // Natural overcast daylight: bright diffuse sky downlight + crisp directional sunlight
+    const hemiLight = new THREE.HemisphereLight(0xe8edf2, 0x555852, 1.25);
+    this.scene.add(hemiLight);
     
-    const sunLight = new THREE.DirectionalLight(0xfffde8, 0.6);
-    sunLight.position.set(50, 100, -50);
+    const sunLight = new THREE.DirectionalLight(0xf2f6fa, 1.1);
+    sunLight.position.set(45, 100, -50);
     this.scene.add(sunLight);
     
     // Camera needs to be in the scene so child objects (cockpit) render
@@ -109,7 +113,7 @@ export class Game {
     
     const steerInput = this.controls.getSteerInput();
     const steerSpeed = 12;
-    const maxX = (this.roadWidth / 2) - 1;
+    const maxX = (this.roadWidth / 2) + 1.5;
     
     this.playerX += steerInput * steerSpeed * deltaTime;
     this.playerX = Math.max(-maxX, Math.min(maxX, this.playerX));

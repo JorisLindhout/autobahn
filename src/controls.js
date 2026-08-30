@@ -34,22 +34,15 @@ export class Controls {
   }
 
   getInputMode() {
-    const hasTouch =
-      'ontouchstart' in window ||
-      navigator.maxTouchPoints > 0;
+    const isMobile =
+      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
 
-    const hasOrientation =
-      'DeviceOrientationEvent' in window;
-
-    if (hasTouch && hasOrientation) {
+    if (isMobile && 'DeviceOrientationEvent' in window) {
       return 'gyro';
     }
 
-    if (isDevMode()) {
-      return 'keyboard';
-    }
-
-    return 'gyro';
+    return 'keyboard';
   }
 
   enable() {

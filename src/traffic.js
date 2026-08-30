@@ -6,29 +6,26 @@ const CAR_VARIANTS = [
     type: 'standard',
     modelUrl: '/models/golf_mk2.glb',
     textures: [
-      '/textures/cars/CompactCar_Texture_Black.png',
-      '/textures/cars/CompactCar_Texture_Blue.png',
-      '/textures/cars/CompactCar_Texture_Brown.png',
       '/textures/cars/CompactCar_Texture_Gray.png',
-      '/textures/cars/CompactCar_Texture_Green.png',
-      '/textures/cars/CompactCar_Texture_Neon.png',
-      '/textures/cars/CompactCar_Texture_Orange.png',
-      '/textures/cars/CompactCar_Texture_Pink.png',
-      '/textures/cars/CompactCar_Texture_Red.png',
+      '/textures/cars/CompactCar_Texture_Black.png',
       '/textures/cars/CompactCar_Texture_White.png',
-      '/textures/cars/CompactCar_Texture_Yellow.png',
+      '/textures/cars/CompactCar_Texture_Brown.png',
+      '/textures/cars/CompactCar_Texture_Blue.png',
+      '/textures/cars/CompactCar_Texture_Green.png',
+      '/textures/cars/CompactCar_Texture_Red.png',
+      '/textures/cars/CompactCar_Texture_Gray.png',
+      '/textures/cars/CompactCar_Texture_Black.png',
     ],
-    weight: 0.70
+    weight: 0.74
   },
   {
     type: 'muscle',
     modelUrl: '/models/golf_gti.glb',
     textures: [
       '/textures/cars/CompactCar_Texture_Muscle_Blue.png',
-      '/textures/cars/CompactCar_Texture_Muscle_Orange.png',
       '/textures/cars/CompactCar_Texture_Muscle_Red.png',
     ],
-    weight: 0.16
+    weight: 0.12
   },
   {
     type: 'taxi',
@@ -72,9 +69,17 @@ export class Traffic {
     this.materialsByVariant = new Map();
     this.assetsReady = false;
 
-    // Car scale and rotation (Math.PI so rear faces player/camera)
     this.carScale = 1.0;
     this.carRotationY = Math.PI;
+
+    // Traffic AI parameters
+    this.safeFollowingDistance = 8.0;    // Minimum gap behind lead car (meters)
+    this.overtakeTriggerDistance = 22.0;  // Gap at which car looks to overtake
+    this.adjacentSafetyGapAhead = 12.0;  // Required free space ahead in target lane
+    this.adjacentSafetyGapBehind = 10.0; // Required free space behind in target lane
+    this.laneChangeDuration = 0.9;       // Duration of lane change in seconds
+    this.brakeRate = 4.0;                // How fast cars brake when stuck behind
+    this.accelRate = 2.0;                // How fast cars regain desired speed
 
     this.loadAllAssets();
   }
@@ -117,7 +122,7 @@ export class Traffic {
             return new THREE.MeshStandardMaterial({
               map: texture,
               roughness: 0.35,
-              metalness: 0.1,
+              metalness: 0.15,
             });
           })
         );
@@ -178,7 +183,14 @@ export class Traffic {
       variantType,
       material,
       lane: 0,
+      targetLane: 0,
+      fromX: 0,
+      toX: 0,
+      isChangingLane: false,
+      laneProgress: 0,
+      laneCooldown: 0,
       speed: 0,
+      baseSpeed: 0,
       active: false
     };
 
@@ -232,6 +244,35 @@ export class Traffic {
     return null;
   }
 
+  setupCarState(car, laneIndex, z, speed = null) {
+    const lane = this.lanePositions[laneIndex];
+    car.position.set(lane, 0, z);
+    car.rotation.y = this.carRotationY;
+
+    if (speed === null) {
+      // Natural Autobahn speed distribution per lane
+      if (laneIndex === 0) {
+        speed = 22 + Math.random() * 6; // Fast/passing lane (left)
+      } else if (laneIndex === 1) {
+        speed = 18 + Math.random() * 5; // Middle cruising lane
+      } else {
+        speed = 14 + Math.random() * 5; // Slower lane (right)
+      }
+    }
+
+    car.userData.lane = laneIndex;
+    car.userData.targetLane = laneIndex;
+    car.userData.fromX = lane;
+    car.userData.toX = lane;
+    car.userData.isChangingLane = false;
+    car.userData.laneProgress = 0;
+    car.userData.laneCooldown = 1.0 + Math.random() * 2.0;
+    car.userData.baseSpeed = speed;
+    car.userData.speed = speed;
+    car.userData.active = true;
+    car.visible = true;
+  }
+
   spawnCar(gameTime) {
     if (!this.assetsReady) {
       return;
@@ -251,14 +292,7 @@ export class Traffic {
     this.randomizeCarAppearance(car);
 
     const laneIndex = availableLanes[Math.floor(Math.random() * availableLanes.length)];
-    const lane = this.lanePositions[laneIndex];
-
-    car.position.set(lane, 0, this.spawnDistance);
-
-    car.userData.lane = laneIndex;
-    car.userData.speed = 15 + Math.random() * 10;
-    car.userData.active = true;
-    car.visible = true;
+    this.setupCarState(car, laneIndex, this.spawnDistance);
 
     this.cars.push(car);
   }
@@ -266,8 +300,8 @@ export class Traffic {
   getAvailableLanes() {
     const recentCars = this.cars.filter(
       car =>
-        car.position.z < this.spawnDistance + 30 &&
-        car.position.z > this.spawnDistance - 10
+        car.position.z < this.spawnDistance + 25 &&
+        car.position.z > this.spawnDistance - 15
     );
 
     const occupiedLanes = new Set(recentCars.map(car => car.userData.lane));
@@ -290,10 +324,10 @@ export class Traffic {
     if (!this.assetsReady) return;
 
     const initialPositions = [
-      { laneIndex: 0, z: -50 },
-      { laneIndex: 2, z: -80 },
-      { laneIndex: 1, z: -115 },
-      { laneIndex: 0, z: -150 }
+      { laneIndex: 0, z: -50, speed: 24 },
+      { laneIndex: 2, z: -80, speed: 17 },
+      { laneIndex: 1, z: -115, speed: 20 },
+      { laneIndex: 0, z: -150, speed: 26 }
     ];
 
     for (const pos of initialPositions) {
@@ -301,21 +335,87 @@ export class Traffic {
       if (!car) continue;
 
       this.randomizeCarAppearance(car);
-
-      const lane = this.lanePositions[pos.laneIndex];
-      car.position.set(lane, 0, pos.z);
-      car.userData.lane = pos.laneIndex;
-      car.userData.speed = 15 + Math.random() * 8;
-      car.userData.active = true;
-      car.visible = true;
-
+      this.setupCarState(car, pos.laneIndex, pos.z, pos.speed);
       this.cars.push(car);
     }
+  }
+
+  startLaneChange(car, targetLane) {
+    if (car.userData.isChangingLane || targetLane === car.userData.lane) return;
+
+    car.userData.isChangingLane = true;
+    car.userData.fromX = car.position.x;
+    car.userData.toX = this.lanePositions[targetLane];
+    car.userData.targetLane = targetLane;
+    car.userData.laneProgress = 0;
+  }
+
+  isLaneClear(targetLane, car) {
+    for (const other of this.cars) {
+      if (other === car || !other.userData.active) continue;
+
+      // Check if other car is in target lane or transitioning across it
+      const inTargetLane =
+        other.userData.lane === targetLane ||
+        other.userData.targetLane === targetLane ||
+        Math.abs(other.position.x - this.lanePositions[targetLane]) < 2.0;
+
+      if (!inTargetLane) continue;
+
+      // deltaZ > 0: other car is ahead; deltaZ <= 0: other car is behind
+      const deltaZ = car.position.z - other.position.z;
+
+      if (deltaZ > 0) {
+        // Other car is ahead in target lane
+        if (deltaZ < this.adjacentSafetyGapAhead) {
+          return false;
+        }
+      } else {
+        // Other car is behind in target lane
+        const behindDistance = -deltaZ;
+        let requiredGap = this.adjacentSafetyGapBehind;
+        if (other.userData.speed > car.userData.speed) {
+          requiredGap += (other.userData.speed - car.userData.speed) * 0.5;
+        }
+        if (behindDistance < requiredGap) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  findLeadCar(car) {
+    let nearestLead = null;
+    let minDistance = Infinity;
+
+    for (const other of this.cars) {
+      if (other === car || !other.userData.active) continue;
+
+      // Check if other car shares path or overlaps horizontally
+      const samePath =
+        other.userData.lane === car.userData.lane ||
+        other.userData.targetLane === car.userData.targetLane ||
+        Math.abs(other.position.x - car.position.x) < 2.2;
+
+      if (!samePath) continue;
+
+      // In this coordinate system, vehicles ahead have more negative Z
+      const distanceAhead = car.position.z - other.position.z;
+
+      if (distanceAhead > 0 && distanceAhead < minDistance) {
+        minDistance = distanceAhead;
+        nearestLead = other;
+      }
+    }
+
+    return { leadCar: nearestLead, distance: minDistance };
   }
 
   reset() {
     for (const car of this.cars) {
       car.userData.active = false;
+      car.userData.isChangingLane = false;
       car.visible = false;
     }
 
@@ -340,13 +440,116 @@ export class Traffic {
       this.nextSpawnTime = spawnInterval * (0.5 + Math.random());
     }
 
+    // 1. Update lane change steering animations and cooldowns
+    for (let i = 0; i < this.cars.length; i++) {
+      const car = this.cars[i];
+      if (car.userData.laneCooldown > 0) {
+        car.userData.laneCooldown -= deltaTime;
+      }
+
+      if (car.userData.isChangingLane) {
+        car.userData.laneProgress += deltaTime / this.laneChangeDuration;
+        const t = Math.min(car.userData.laneProgress, 1.0);
+        // Smooth cubic ease-in-out curve
+        const ease = t * t * (3 - 2 * t);
+        car.position.x = THREE.MathUtils.lerp(car.userData.fromX, car.userData.toX, ease);
+
+        // Natural slight yaw turn during lane change
+        const deltaX = car.userData.toX - car.userData.fromX;
+        const steeringYaw = Math.sin(t * Math.PI) * (deltaX > 0 ? -0.07 : 0.07);
+        car.rotation.y = this.carRotationY + steeringYaw;
+
+        if (t >= 1.0) {
+          car.userData.isChangingLane = false;
+          car.userData.lane = car.userData.targetLane;
+          car.position.x = this.lanePositions[car.userData.lane];
+          car.rotation.y = this.carRotationY;
+          car.userData.laneCooldown = 1.5 + Math.random() * 2.0;
+        }
+      }
+    }
+
+    // 2. Traffic AI: Lead car following, overtaking decisions, and braking
+    for (let i = 0; i < this.cars.length; i++) {
+      const car = this.cars[i];
+      const { leadCar, distance } = this.findLeadCar(car);
+
+      if (leadCar && distance < this.overtakeTriggerDistance) {
+        // Vehicle ahead is in range: try overtaking if ready
+        if (!car.userData.isChangingLane && car.userData.laneCooldown <= 0) {
+          const currentLane = car.userData.lane;
+
+          if (currentLane === 1) {
+            // Middle lane: try left pass first (Autobahn rules), then right
+            if (this.isLaneClear(0, car)) {
+              this.startLaneChange(car, 0);
+            } else if (this.isLaneClear(2, car)) {
+              this.startLaneChange(car, 2);
+            }
+          } else if (currentLane === 2) {
+            // Right lane: pass on middle lane
+            if (this.isLaneClear(1, car)) {
+              this.startLaneChange(car, 1);
+            }
+          } else if (currentLane === 0) {
+            // Left lane: pass on middle lane
+            if (this.isLaneClear(1, car)) {
+              this.startLaneChange(car, 1);
+            }
+          }
+        }
+
+        // If not overtaking or waiting for opening, match speed / brake safely
+        if (distance <= this.safeFollowingDistance) {
+          const targetSpeed = Math.max(8, leadCar.userData.speed - (this.safeFollowingDistance - distance));
+          car.userData.speed = THREE.MathUtils.lerp(
+            car.userData.speed,
+            targetSpeed,
+            deltaTime * this.brakeRate * 2.5
+          );
+        } else {
+          car.userData.speed = THREE.MathUtils.lerp(
+            car.userData.speed,
+            leadCar.userData.speed,
+            deltaTime * this.brakeRate
+          );
+        }
+      } else {
+        // Clear road ahead: smoothly accelerate back to desired cruise speed
+        car.userData.speed = THREE.MathUtils.lerp(
+          car.userData.speed,
+          car.userData.baseSpeed,
+          deltaTime * this.accelRate
+        );
+
+        // Highway lane discipline: if cruising in the left lane with open road, return to middle
+        if (
+          !car.userData.isChangingLane &&
+          car.userData.laneCooldown <= 0 &&
+          car.userData.lane === 0 &&
+          this.isLaneClear(1, car)
+        ) {
+          this.startLaneChange(car, 1);
+        }
+      }
+    }
+
+    // 3. Move cars along Z and despawn cars that pass behind the camera
     for (let i = this.cars.length - 1; i >= 0; i--) {
       const car = this.cars[i];
       const relativeSpeed = playerSpeed - car.userData.speed;
       car.position.z += relativeSpeed * deltaTime;
 
+      // Hard anti-clipping safeguard
+      const { leadCar, distance } = this.findLeadCar(car);
+      if (leadCar && distance < 4.2) {
+        car.position.z = leadCar.position.z + 4.2;
+        car.userData.speed = Math.min(car.userData.speed, leadCar.userData.speed);
+      }
+
       if (car.position.z > this.despawnDistance) {
         car.userData.active = false;
+        car.userData.isChangingLane = false;
         car.visible = false;
         this.cars.splice(i, 1);
       }
