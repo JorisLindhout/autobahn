@@ -21,6 +21,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0x87ceeb);
 
 const game = new Game(renderer);
+window.game = game;
 
 let hasGyroscope = false;
 let gyroChecked = false;
@@ -101,28 +102,31 @@ async function requestMotionPermission() {
 }
 
 async function startGame() {
+  // Desktop uses keyboard controls.
   if (!isMobileDevice()) {
-    showDesktopScreen();
+    hideAllScreens();
+    game.start();
     return;
   }
-  
+
+  // Mobile uses gyroscope controls.
   const hasPermission = await requestMotionPermission();
-  
+
   if (!hasPermission) {
     showPermissionPrompt();
     return;
   }
-  
+
   if (!gyroChecked) {
     hasGyroscope = await checkGyroscope();
     gyroChecked = true;
   }
-  
+
   if (!hasGyroscope) {
     showNoGyroScreen();
     return;
   }
-  
+
   hideAllScreens();
   game.start();
 }
