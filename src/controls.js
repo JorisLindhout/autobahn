@@ -1,3 +1,10 @@
+function isDevMode() {
+  if (import.meta.env.VITE_DEV_CONTROLS !== undefined) {
+    return import.meta.env.VITE_DEV_CONTROLS === 'true';
+  }
+  return !!import.meta.env.DEV;
+}
+
 export class Controls {
   constructor() {
     this.steerInput = 0;
@@ -38,7 +45,11 @@ export class Controls {
       return 'gyro';
     }
 
-    return 'keyboard';
+    if (isDevMode()) {
+      return 'keyboard';
+    }
+
+    return 'gyro';
   }
 
   enable() {
@@ -57,7 +68,7 @@ export class Controls {
         'deviceorientation',
         this.handleOrientation
       );
-    } else {
+    } else if (this.mode === 'keyboard' && isDevMode()) {
       window.addEventListener('keydown', this.handleKeyDown);
       window.addEventListener('keyup', this.handleKeyUp);
     }
@@ -113,7 +124,7 @@ export class Controls {
   }
 
   handleKeyDown(event) {
-    if (!this.enabled || this.mode !== 'keyboard') return;
+    if (!this.enabled || this.mode !== 'keyboard' || !isDevMode()) return;
 
     if (
       event.key === 'ArrowLeft' ||
@@ -135,7 +146,7 @@ export class Controls {
   }
 
   handleKeyUp(event) {
-    if (!this.enabled || this.mode !== 'keyboard') return;
+    if (!this.enabled || this.mode !== 'keyboard' || !isDevMode()) return;
 
     if (
       event.key === 'ArrowLeft' ||

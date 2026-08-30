@@ -290,10 +290,10 @@ export class Traffic {
     if (!this.assetsReady) return;
 
     const initialPositions = [
-      { laneIndex: 0, z: -25 },
-      { laneIndex: 2, z: -45 },
-      { laneIndex: 1, z: -70 },
-      { laneIndex: 0, z: -95 }
+      { laneIndex: 0, z: -50 },
+      { laneIndex: 2, z: -80 },
+      { laneIndex: 1, z: -115 },
+      { laneIndex: 0, z: -150 }
     ];
 
     for (const pos of initialPositions) {

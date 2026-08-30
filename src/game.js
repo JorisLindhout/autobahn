@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Controls } from './controls.js';
 import { Road } from './road.js';
 import { Traffic } from './traffic.js';
-import { Dashboard } from './dashboard.js';
+import { Cockpit } from './cockpit.js';
 import { Collision } from './collision.js';
 import { createSky, createSun, createScenery, updateScenery, resetScenery } from './visuals.js';
 
@@ -13,14 +13,14 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
-      0.1,
+      0.02,
       1000
     );
     
     this.controls = new Controls();
     this.road = new Road(this.scene);
     this.traffic = new Traffic(this.scene);
-    this.dashboard = new Dashboard();
+    this.cockpit = new Cockpit(this.camera);
     this.collision = new Collision();
     
     this.gameState = 'title';
@@ -63,8 +63,10 @@ export class Game {
     sunLight.position.set(50, 100, -50);
     this.scene.add(sunLight);
     
+    // Camera needs to be in the scene so child objects (cockpit) render
+    this.scene.add(this.camera);
+
     this.road.create();
-    this.dashboard.create();
   }
   
   start() {
@@ -77,14 +79,13 @@ export class Game {
     this.road.reset();
     this.traffic.reset();
     this.controls.enable();
-    this.dashboard.show();
+    this.cockpit.show();
     resetScenery();
   }
   
   stop() {
     this.gameState = 'gameover';
     this.controls.disable();
-    this.dashboard.hide();
     
     if (this.onGameOver) {
       this.onGameOver();
@@ -115,7 +116,7 @@ export class Game {
     
     this.camera.position.x = this.playerX;
     
-    this.dashboard.update(steerInput, this.speed);
+    this.cockpit.update(steerInput, this.speed);
     
     this.road.update(deltaTime, this.speed);
     

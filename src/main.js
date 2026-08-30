@@ -13,18 +13,26 @@ const permissionButton = document.getElementById('permission-button');
 
 const renderer = new THREE.WebGLRenderer({ 
   canvas, 
-  antialias: false,
+  antialias: true,
   powerPreference: 'high-performance'
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setClearColor(0x87ceeb);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 
 const game = new Game(renderer);
 window.game = game;
 
 let hasGyroscope = false;
 let gyroChecked = false;
+
+function isDevMode() {
+  if (import.meta.env.VITE_DEV_CONTROLS !== undefined) {
+    return import.meta.env.VITE_DEV_CONTROLS === 'true';
+  }
+  return !!import.meta.env.DEV;
+}
 
 function isMobileDevice() {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
@@ -102,10 +110,14 @@ async function requestMotionPermission() {
 }
 
 async function startGame() {
-  // Desktop uses keyboard controls.
+  // Desktop in dev mode uses keyboard controls for development/testing.
   if (!isMobileDevice()) {
-    hideAllScreens();
-    game.start();
+    if (isDevMode()) {
+      hideAllScreens();
+      game.start();
+      return;
+    }
+    showDesktopScreen();
     return;
   }
 
@@ -166,5 +178,9 @@ if (screen.orientation && screen.orientation.lock) {
   });
 }
 
-showTitleScreen();
+if (!isMobileDevice() && !isDevMode()) {
+  showDesktopScreen();
+} else {
+  showTitleScreen();
+}
 game.renderTitle();
