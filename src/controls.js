@@ -11,7 +11,7 @@ export class Controls {
     this.targetSteer = 0;
     this.enabled = false;
 
-    // Input mode
+    // Input mode: 'gyro' | 'touch' | 'keyboard'
     this.mode = this.getInputMode();
 
     // Gyroscope calibration
@@ -28,9 +28,28 @@ export class Controls {
     this.leftPressed = false;
     this.rightPressed = false;
 
+    // Touch state
+    this.activeTouches = new Map();
+
     this.handleOrientation = this.handleOrientation.bind(this);
     this.handleKeyDown = this.handleKeyDown.bind(this);
     this.handleKeyUp = this.handleKeyUp.bind(this);
+    this.handleTouchStart = this.handleTouchStart.bind(this);
+    this.handleTouchMove = this.handleTouchMove.bind(this);
+    this.handleTouchEnd = this.handleTouchEnd.bind(this);
+    this.handleTouchCancel = this.handleTouchCancel.bind(this);
+  }
+
+  setMode(mode) {
+    if (this.mode === mode) return;
+    const wasEnabled = this.enabled;
+    if (wasEnabled) {
+      this.disable();
+    }
+    this.mode = mode;
+    if (wasEnabled) {
+      this.enable();
+    }
   }
 
   getInputMode() {
@@ -40,6 +59,10 @@ export class Controls {
 
     if (isMobile && 'DeviceOrientationEvent' in window) {
       return 'gyro';
+    }
+
+    if (isMobile) {
+      return 'touch';
     }
 
     return 'keyboard';
@@ -55,12 +78,21 @@ export class Controls {
 
     this.leftPressed = false;
     this.rightPressed = false;
+    this.activeTouches.clear();
 
     if (this.mode === 'gyro') {
-      window.addEventListener(
-        'deviceorientation',
-        this.handleOrientation
-      );
+      window.addEventListener('deviceorientation', this.handleOrientation);
+      window.addEventListener('deviceorientationabsolute', this.handleOrientation);
+      // Also listen to touch for touch steering fallback/supplement
+      window.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+      window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+      window.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+      window.addEventListener('touchcancel', this.handleTouchCancel, { passive: false });
+    } else if (this.mode === 'touch') {
+      window.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+      window.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+      window.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+      window.addEventListener('touchcancel', this.handleTouchCancel, { passive: false });
     } else if (this.mode === 'keyboard' && isDevMode()) {
       window.addEventListener('keydown', this.handleKeyDown);
       window.addEventListener('keyup', this.handleKeyUp);
@@ -70,24 +102,30 @@ export class Controls {
   disable() {
     this.enabled = false;
 
-    window.removeEventListener(
-      'deviceorientation',
-      this.handleOrientation
-    );
+    window.removeEventListener('deviceorientation', this.handleOrientation);
+    window.removeEventListener('deviceorientationabsolute', this.handleOrientation);
+
+    window.removeEventListener('touchstart', this.handleTouchStart);
+    window.removeEventListener('touchmove', this.handleTouchMove);
+    window.removeEventListener('touchend', this.handleTouchEnd);
+    window.removeEventListener('touchcancel', this.handleTouchCancel);
 
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
 
     this.leftPressed = false;
     this.rightPressed = false;
+    this.activeTouches.clear();
 
     this.targetSteer = 0;
   }
 
   handleOrientation(event) {
     if (!this.enabled || this.mode !== 'gyro') return;
+    if (this.activeTouches.size > 0) return; // Touch override
 
-    const gamma = event.gamma || 0;
+    const gamma = event.gamma;
+    if (gamma === null || gamma === undefined) return;
 
     // Capture the phone's starting orientation.
     if (!this.calibrated) {
@@ -96,8 +134,7 @@ export class Controls {
       return;
     }
 
-    const adjustedGamma =
-      gamma - this.calibrationGamma;
+    const adjustedGamma = gamma - this.calibrationGamma;
 
     const normalizedTilt = Math.max(
       -1,
@@ -107,13 +144,71 @@ export class Controls {
       )
     );
 
-    // Apply the same steering curve used by
-    // the original mobile implementation.
     const sign = Math.sign(normalizedTilt);
     const magnitude = Math.abs(normalizedTilt);
     const curved = Math.pow(magnitude, 1.5);
 
     this.targetSteer = sign * curved;
+  }
+
+  handleTouchStart(event) {
+    if (!this.enabled) return;
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      const touch = event.changedTouches[i];
+      this.activeTouches.set(touch.identifier, touch.clientX);
+    }
+    this.updateTouchSteering();
+  }
+
+  handleTouchMove(event) {
+    if (!this.enabled) return;
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      const touch = event.changedTouches[i];
+      if (this.activeTouches.has(touch.identifier)) {
+        this.activeTouches.set(touch.identifier, touch.clientX);
+      }
+    }
+    this.updateTouchSteering();
+  }
+
+  handleTouchEnd(event) {
+    if (!this.enabled) return;
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      this.activeTouches.delete(event.changedTouches[i].identifier);
+    }
+    this.updateTouchSteering();
+  }
+
+  handleTouchCancel(event) {
+    if (!this.enabled) return;
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      this.activeTouches.delete(event.changedTouches[i].identifier);
+    }
+    this.updateTouchSteering();
+  }
+
+  updateTouchSteering() {
+    if (this.activeTouches.size === 0) {
+      if (this.mode === 'touch') {
+        this.targetSteer = 0;
+      }
+      return;
+    }
+
+    // Average the touch positions relative to screen center
+    const width = window.innerWidth;
+    const midX = width / 2;
+    let totalSteer = 0;
+
+    for (const clientX of this.activeTouches.values()) {
+      if (clientX < midX) {
+        totalSteer -= 1;
+      } else {
+        totalSteer += 1;
+      }
+    }
+
+    this.targetSteer = Math.max(-1, Math.min(1, totalSteer));
   }
 
   handleKeyDown(event) {

@@ -543,6 +543,23 @@ button:hover, button:active {
   margin-bottom: 1rem;
 }
 
+.screen-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .screen-buttons {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
 #desktop-screen .qr-hint {
   font-size: 0.85rem;
   color: #555555;
