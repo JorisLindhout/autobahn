@@ -351,12 +351,11 @@ function addRollingHills(group) {
     { x: 320, z: -220, radius: 220, height: 42, mat: farHillMaterial },
     { x: 340, z: -470, radius: 240, height: 48, mat: farHillMaterial },
 
-    // Distant horizon mountain ranges at the far end
-    { x: -180, z: -680, radius: 220, height: 35, mat: farHillMaterial },
-    { x: 0,    z: -720, radius: 260, height: 32, mat: farHillMaterial },
-    { x: 180,  z: -690, radius: 220, height: 36, mat: farHillMaterial },
-    { x: -380, z: -780, radius: 320, height: 50, mat: farHillMaterial },
-    { x: 380,  z: -780, radius: 320, height: 50, mat: farHillMaterial }
+    // Distant horizon mountain ranges at the far end (safely offset so they never intersect the highway corridor)
+    { x: -300, z: -680, radius: 220, height: 38, mat: farHillMaterial },
+    { x: 300,  z: -690, radius: 220, height: 38, mat: farHillMaterial },
+    { x: -440, z: -780, radius: 340, height: 52, mat: farHillMaterial },
+    { x: 440,  z: -780, radius: 340, height: 52, mat: farHillMaterial }
   ];
   
   for (const pos of ridgePositions) {
