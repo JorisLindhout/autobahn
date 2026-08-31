@@ -10,12 +10,8 @@ const desktopScreen = document.getElementById('desktop-screen');
 const startButton = document.getElementById('start-button');
 const restartButton = document.getElementById('restart-button');
 const permissionButton = document.getElementById('permission-button');
-
-const noGyroTitle = document.getElementById('no-gyro-title');
-const noGyroDesc = document.getElementById('no-gyro-desc');
-const noGyroHint = document.getElementById('no-gyro-hint');
-const noGyroTouchButton = document.getElementById('no-gyro-touch-button');
 const noGyroRetryButton = document.getElementById('no-gyro-retry-button');
+const noGyroDesc = document.getElementById('no-gyro-desc');
 
 const renderer = new THREE.WebGLRenderer({ 
   canvas, 
@@ -34,8 +30,7 @@ window.game = game;
 
 let hasGyroscope = false;
 let gyroChecked = false;
-let gyroFailureReason = null; // 'insecure_context' | 'no_sensor' | 'permission_denied' | 'timeout'
-let activeControlMode = 'gyro';
+let gyroFailureReason = null;
 
 function isDevMode() {
   if (import.meta.env.VITE_DEV_CONTROLS !== undefined) {
@@ -85,18 +80,14 @@ function showPermissionPrompt() {
 
 function showNoGyroScreen() {
   hideAllScreens();
-  if (gyroFailureReason === 'insecure_context') {
-    if (noGyroTitle) noGyroTitle.textContent = 'HTTPS REQUIRED';
-    if (noGyroDesc) noGyroDesc.textContent = 'Mobile browsers block gyroscope on insecure HTTP.';
-    if (noGyroHint) noGyroHint.textContent = 'Open via HTTPS (e.g. Cloudflare tunnel) or play using touch controls:';
-  } else if (gyroFailureReason === 'permission_denied') {
-    if (noGyroTitle) noGyroTitle.textContent = 'PERMISSION NEEDED';
-    if (noGyroDesc) noGyroDesc.textContent = 'Motion sensor permission was not granted.';
-    if (noGyroHint) noGyroHint.textContent = 'Enable motion permissions in browser settings or play with touch:';
-  } else {
-    if (noGyroTitle) noGyroTitle.textContent = 'NO GYROSCOPE';
-    if (noGyroDesc) noGyroDesc.textContent = "Could not detect active motion sensors on this device.";
-    if (noGyroHint) noGyroHint.textContent = 'You can retry or play using touch controls (tap left/right to steer):';
+  if (noGyroDesc) {
+    if (gyroFailureReason === 'insecure_context') {
+      noGyroDesc.textContent = 'HTTPS required: mobile browsers disable motion sensors on HTTP.';
+    } else if (gyroFailureReason === 'permission_denied') {
+      noGyroDesc.textContent = 'Motion sensor permission was denied.';
+    } else {
+      noGyroDesc.textContent = "Your device doesn't have active motion sensors.";
+    }
   }
   noGyroScreen.classList.remove('hidden');
 }
@@ -143,16 +134,13 @@ async function checkGyroscope() {
       }
     };
 
-    // 2500ms timeout to allow stationary sensors to emit or hardware to warm up
     const timeout = setTimeout(() => {
-      // In a secure mobile browser where DeviceOrientationEvent is defined,
-      // stationary devices might not emit an event until moved.
       if (typeof DeviceOrientationEvent !== 'undefined') {
         done(true);
       } else {
         done(false, 'timeout');
       }
-    }, 2500);
+    }, 2000);
 
     window.addEventListener('deviceorientation', handleOrientation);
     window.addEventListener('deviceorientationabsolute', handleOrientation);
@@ -181,17 +169,12 @@ async function requestMotionPermission() {
   return true;
 }
 
-function startWithMode(mode) {
-  activeControlMode = mode;
-  hideAllScreens();
-  game.start(mode);
-}
-
 async function startGame() {
   // Desktop in dev mode uses keyboard controls for development/testing.
   if (!isMobileDevice()) {
     if (isDevMode()) {
-      startWithMode('keyboard');
+      hideAllScreens();
+      game.start();
       return;
     }
     showDesktopScreen();
@@ -227,7 +210,8 @@ async function startGame() {
     return;
   }
 
-  startWithMode('gyro');
+  hideAllScreens();
+  game.start();
 }
 
 game.onGameOver = () => {
@@ -237,7 +221,7 @@ game.onGameOver = () => {
 startButton.addEventListener('click', startGame);
 restartButton.addEventListener('click', () => {
   hideAllScreens();
-  game.start(activeControlMode);
+  game.start();
 });
 
 permissionButton.addEventListener('click', async () => {
@@ -249,16 +233,11 @@ permissionButton.addEventListener('click', async () => {
     if (!hasGyroscope) {
       showNoGyroScreen();
     } else {
-      startWithMode('gyro');
+      hideAllScreens();
+      game.start();
     }
   }
 });
-
-if (noGyroTouchButton) {
-  noGyroTouchButton.addEventListener('click', () => {
-    startWithMode('touch');
-  });
-}
 
 if (noGyroRetryButton) {
   noGyroRetryButton.addEventListener('click', async () => {

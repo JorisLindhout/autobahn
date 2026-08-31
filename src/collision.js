@@ -41,6 +41,9 @@ export class Collision {
       
       const carX = car.position.x;
       const carZ = car.position.z;
+
+      // Ignore cars that have already passed behind the player's view
+      if (carZ > 0) continue;
       
       const carMinX = carX - this.carWidth / 2 - this.collisionBuffer;
       const carMaxX = carX + this.carWidth / 2 + this.collisionBuffer;

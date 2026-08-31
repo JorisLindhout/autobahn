@@ -56,7 +56,7 @@ export class Traffic {
     this.lanePositions = [-4, 0, 4];
 
     this.spawnDistance = -120;
-    this.despawnDistance = 20;
+    this.despawnDistance = 2;
 
     this.minSpawnInterval = 1.0;
     this.maxSpawnInterval = 3.0;

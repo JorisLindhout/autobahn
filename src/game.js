@@ -73,7 +73,7 @@ export class Game {
     this.road.create();
   }
   
-  start(controlMode) {
+  start() {
     this.gameState = 'playing';
     this.speed = this.baseSpeed;
     this.playerX = 0;
@@ -82,9 +82,6 @@ export class Game {
     
     this.road.reset();
     this.traffic.reset();
-    if (controlMode) {
-      this.controls.setMode(controlMode);
-    }
     this.controls.enable();
     this.cockpit.show();
     resetScenery();

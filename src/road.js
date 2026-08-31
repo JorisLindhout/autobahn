@@ -133,7 +133,7 @@ export class Road {
     this.renderer = renderer;
     this.chunks = [];
     this.chunkLength = 100;
-    this.numChunks = 5;
+    this.numChunks = 7;
     this.roadWidth = 12;
     this.laneWidth = 4;
     this.scrollOffset = 0;
@@ -255,10 +255,11 @@ export class Road {
   }
 
   addLaneMarkings(group) {
-    const dashLength = 3;
+    const dashLength = 4;
     const dashGap = 6;
+    const cycle = dashLength + dashGap; // 10m cycle divides 100m chunk length evenly
     const dashWidth = 0.15;
-    const numDashes = Math.floor(this.chunkLength / (dashLength + dashGap));
+    const numDashes = Math.round(this.chunkLength / cycle);
 
     const dashGeometry = new THREE.PlaneGeometry(dashWidth, dashLength);
 
@@ -271,7 +272,7 @@ export class Road {
         dash.position.set(
           xPos,
           0.02,
-          -i * (dashLength + dashGap) - dashLength / 2
+          -i * cycle - dashLength / 2
         );
         group.add(dash);
       }
@@ -342,13 +343,13 @@ export class Road {
   update(deltaTime, speed) {
     const movement = speed * deltaTime;
     this.scrollOffset += movement;
+    const totalLength = this.numChunks * this.chunkLength;
 
     for (const chunk of this.chunks) {
       chunk.position.z += movement;
 
       if (chunk.position.z > this.chunkLength) {
-        const minZ = Math.min(...this.chunks.map(c => c.position.z));
-        chunk.position.z = minZ - this.chunkLength;
+        chunk.position.z -= totalLength;
       }
     }
   }
