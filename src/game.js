@@ -5,6 +5,11 @@ import { Traffic } from './traffic.js';
 import { Cockpit } from './cockpit.js';
 import { Collision } from './collision.js';
 import { createSky, createSun, createScenery, updateScenery, resetScenery, getSceneryPromise } from './visuals.js';
+import { Weather } from './weather.js';
+
+// Rain timing — first drops at 45s, then ramps to full storm over rainRampDuration.
+const RAIN_START_TIME = 45;
+const RAIN_RAMP_DURATION = 180;
 
 export class Game {
   constructor(renderer) {
@@ -33,6 +38,11 @@ export class Game {
     this.laneWidth = 4;
     this.roadWidth = 12;
     this.gameTime = 0;
+
+    // Change rainStartTime at runtime via `game.rainStartTime` (seconds).
+    this.rainStartTime = RAIN_START_TIME;
+    this.rainRampDuration = RAIN_RAMP_DURATION;
+    this.rainIntensity = 0;
 
     // Shoulder driving mechanics
     this.shoulderTimer = 0;
@@ -102,6 +112,7 @@ export class Game {
     
     const sky = createSky();
     this.scene.add(sky);
+    this.sky = sky;
     
     const sun = createSun();
     this.scene.add(sun);
@@ -112,10 +123,21 @@ export class Game {
     // Natural overcast daylight: bright diffuse sky downlight + crisp directional sunlight
     const hemiLight = new THREE.HemisphereLight(0xe8edf2, 0x555852, 1.25);
     this.scene.add(hemiLight);
+    this.hemiLight = hemiLight;
     
     const sunLight = new THREE.DirectionalLight(0xf2f6fa, 1.1);
     sunLight.position.set(45, 100, -50);
     this.scene.add(sunLight);
+    this.sunLight = sunLight;
+
+    this.weather = new Weather({
+      scene: this.scene,
+      camera: this.camera,
+      renderer: this.renderer,
+      hemiLight,
+      sunLight,
+      sky
+    });
     
     // Camera needs to be in the scene so child objects (cockpit) render
     this.scene.add(this.camera);
@@ -129,6 +151,7 @@ export class Game {
     this.playerX = 0;
     this.playerLane = 1;
     this.gameTime = 0;
+    this.rainIntensity = 0;
     this.shoulderTimer = 0;
     this.isOnShoulder = false;
     this.crashTimer = 0;
@@ -143,7 +166,25 @@ export class Game {
     this.controls.enable();
     this.cockpit.show();
     this.cockpit.repairWindshield();
+    this.cockpit.resetRain();
+    this.weather.reset();
     resetScenery();
+    this.updateWeather(1 / 15);
+  }
+
+  getRainIntensity() {
+    const elapsed = this.gameTime - this.rainStartTime;
+    if (elapsed < 0) return 0;
+    if (this.rainRampDuration <= 0) return 1;
+    const t = Math.min(elapsed / this.rainRampDuration, 1);
+    // Light rain from the first moment it starts, then ramps to full storm.
+    return 0.18 + 0.82 * t;
+  }
+
+  updateWeather(deltaTime) {
+    this.rainIntensity = this.getRainIntensity();
+    this.weather.update(deltaTime, this.rainIntensity, this.speed);
+    this.cockpit.updateRain(deltaTime, this.rainIntensity, this.speed);
   }
 
   crash() {
@@ -198,6 +239,7 @@ export class Game {
       this.road.update(deltaTime, this.speed);
       this.traffic.update(deltaTime, this.speed, this.gameTime);
       updateScenery(deltaTime, this.speed);
+      this.updateWeather(deltaTime);
 
       if (this.crashTimer >= this.crashDuration) {
         this.stop();
@@ -264,6 +306,7 @@ export class Game {
     this.traffic.update(deltaTime, this.speed, this.gameTime);
     
     updateScenery(deltaTime, this.speed);
+    this.updateWeather(deltaTime);
     
     const collision = this.collision.check(
       this.playerX,

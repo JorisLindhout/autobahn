@@ -16,6 +16,7 @@ export class Cockpit {
     this.driverOffset = new THREE.Vector3(0.525, -0.42, -0.28);
 
     this.setupCrackOverlay();
+    this.setupRainOverlay();
     this.camera.add(this.cockpitGroup);
     this.hide();
     this.loadPromise = this.loadModel();
@@ -52,6 +53,40 @@ export class Cockpit {
 
     // Pre-generate and upload texture to GPU during startup so the first crash is 100% instantaneous
     this.drawCracks();
+  }
+
+  setupRainOverlay() {
+    this.rainCanvas = document.createElement('canvas');
+    this.rainCanvas.width = 512;
+    this.rainCanvas.height = 256;
+    this.rainCtx = this.rainCanvas.getContext('2d');
+
+    this.rainTexture = new THREE.CanvasTexture(this.rainCanvas);
+    this.rainTexture.generateMipmaps = true;
+    this.rainTexture.minFilter = THREE.LinearMipmapLinearFilter;
+    this.rainTexture.magFilter = THREE.LinearFilter;
+
+    const rainGeo = new THREE.PlaneGeometry(1.50, 0.72);
+    const rainMat = new THREE.MeshBasicMaterial({
+      map: this.rainTexture,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      depthTest: true,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1
+    });
+
+    this.rainMesh = new THREE.Mesh(rainGeo, rainMat);
+    this.rainMesh.visible = false;
+    this.rainMesh.renderOrder = 4;
+
+    this.rainDrops = [];
+    this.rainAccum = 0;
+    this.rainUpdateInterval = 1 / 15;
+    this.windowClearOpacity = 0.15;
   }
 
   drawCracks() {
@@ -224,6 +259,119 @@ export class Cockpit {
     }
   }
 
+  attachGlassOverlay(mesh, parent) {
+    mesh.position.set(0, 0.517, 0.717);
+    mesh.rotation.set(-0.783, 0, 0);
+    parent.add(mesh);
+  }
+
+  resetRain() {
+    this.rainDrops.length = 0;
+    this.rainAccum = 0;
+    if (this.rainCtx) {
+      this.rainCtx.clearRect(0, 0, this.rainCanvas.width, this.rainCanvas.height);
+      this.rainTexture.needsUpdate = true;
+    }
+    if (this.rainMesh) {
+      this.rainMesh.visible = false;
+      this.rainMesh.material.opacity = 0;
+    }
+    this.windowMaterials.forEach((mat) => {
+      mat.opacity = this.windowClearOpacity;
+    });
+  }
+
+  spawnRainDrop(intensity, speedRatio) {
+    const w = this.rainCanvas.width;
+    const h = this.rainCanvas.height;
+    const size = 0.7 + Math.random() * (1.1 + intensity * 1.2);
+    this.rainDrops.push({
+      x: Math.random() * w,
+      y: Math.random() * h * 0.72,
+      size,
+      vy: (22 + size * 14 + speedRatio * 36) * (0.7 + Math.random() * 0.6),
+      streak: 4 + speedRatio * 10 + size * 2.4,
+      alpha: 0.14 + Math.random() * 0.18 + intensity * 0.1
+    });
+  }
+
+  drawRainDrops(intensity) {
+    const ctx = this.rainCtx;
+    const w = this.rainCanvas.width;
+    const h = this.rainCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    ctx.fillStyle = `rgba(165, 180, 195, ${0.04 + intensity * 0.12})`;
+    ctx.fillRect(0, 0, w, h);
+
+    for (let i = 0; i < this.rainDrops.length; i++) {
+      const drop = this.rainDrops[i];
+      ctx.strokeStyle = `rgba(200, 214, 226, ${drop.alpha})`;
+      ctx.lineWidth = Math.max(1.2, drop.size * 0.9);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(drop.x, drop.y - drop.streak);
+      ctx.lineTo(drop.x, drop.y + drop.streak * 0.15);
+      ctx.stroke();
+    }
+
+    this.rainTexture.needsUpdate = true;
+  }
+
+  updateRain(deltaTime, intensity, speed) {
+    if (!this.rainMesh || !this.rainCtx) return;
+
+    if (intensity <= 0.001) {
+      if (this.rainMesh.visible) this.resetRain();
+      return;
+    }
+
+    this.rainMesh.visible = true;
+    this.rainMesh.material.opacity = 0.35 + intensity * 0.5;
+
+    this.windowMaterials.forEach((mat) => {
+      mat.opacity = this.windowClearOpacity + intensity * 0.12;
+    });
+
+    this.rainAccum += deltaTime;
+    if (this.rainAccum < this.rainUpdateInterval) return;
+    const step = this.rainAccum;
+    this.rainAccum = 0;
+
+    const speedRatio = Math.min(speed / 80, 1);
+    const targetCount = Math.floor(12 + intensity * 78);
+    const spawnBudget = 2 + Math.floor(intensity * 5);
+
+    let spawned = 0;
+    while (this.rainDrops.length < targetCount && spawned < spawnBudget) {
+      this.spawnRainDrop(intensity, speedRatio);
+      spawned++;
+    }
+
+    const h = this.rainCanvas.height;
+    const w = this.rainCanvas.width;
+    for (let i = this.rainDrops.length - 1; i >= 0; i--) {
+      const drop = this.rainDrops[i];
+      drop.y += drop.vy * step;
+      drop.x += (Math.random() - 0.5) * 3 * step;
+      drop.streak = THREE.MathUtils.lerp(drop.streak, 4 + drop.size * 2 + speedRatio * 10, 0.1);
+
+      if (drop.y - drop.streak > h || drop.x < -10 || drop.x > w + 10) {
+        if (this.rainDrops.length > targetCount) {
+          this.rainDrops.splice(i, 1);
+        } else {
+          drop.x = Math.random() * w;
+          drop.y = -drop.streak;
+          drop.size = 0.7 + Math.random() * (1.1 + intensity * 1.2);
+          drop.vy = (22 + drop.size * 14 + speedRatio * 36) * (0.7 + Math.random() * 0.6);
+          drop.alpha = 0.14 + Math.random() * 0.18 + intensity * 0.1;
+        }
+      }
+    }
+
+    this.drawRainDrops(intensity);
+  }
+
   createSmoothSteeringWheelGeometry() {
     const geometries = [];
 
@@ -297,6 +445,7 @@ export class Cockpit {
               if (mat.name && mat.name.toLowerCase().includes('window')) {
                 mat.transparent = true;
                 mat.opacity = 0.15;
+                mat.depthWrite = false;
                 mat.roughness = 0.1;
                 mat.metalness = 0.1;
                 this.windowMaterials.push(mat);
@@ -323,13 +472,15 @@ export class Cockpit {
       // This ensures depth testing naturally masks the cracks behind the A-pillars & dashboard
       const carBase = root.getObjectByName('Car_Base');
       if (carBase) {
-        this.crackMesh.position.set(0, 0.517, 0.717);
-        this.crackMesh.rotation.set(-0.783, 0, 0);
-        carBase.add(this.crackMesh);
+        this.attachGlassOverlay(this.crackMesh, carBase);
+        this.attachGlassOverlay(this.rainMesh, carBase);
       } else {
         this.crackMesh.position.set(0.08, 0.47, 0.346);
         this.crackMesh.rotation.set(-0.783, 0, 0);
         root.add(this.crackMesh);
+        this.rainMesh.position.set(0.08, 0.47, 0.346);
+        this.rainMesh.rotation.set(-0.783, 0, 0);
+        root.add(this.rainMesh);
       }
 
       root.position.copy(this.driverOffset);

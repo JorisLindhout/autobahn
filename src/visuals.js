@@ -3,9 +3,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 let windTurbines = [];
 let sceneryGroup = null;
+let loopGroup = null;
 let sceneryPromise = null;
 let scrollOffset = 0;
 const SCENERY_LOOP_LENGTH = 600;
+const LOOP_SEGMENTS = 2;
 const PARALLAX_FACTOR = 0.15;
 
 export function updateScenery(deltaTime, speed = 0) {
@@ -15,14 +17,14 @@ export function updateScenery(deltaTime, speed = 0) {
     }
   }
   
-  if (sceneryGroup && speed > 0) {
+  if (loopGroup && speed > 0) {
     scrollOffset += speed * deltaTime * PARALLAX_FACTOR;
     
     if (scrollOffset > SCENERY_LOOP_LENGTH) {
       scrollOffset -= SCENERY_LOOP_LENGTH;
     }
     
-    sceneryGroup.position.z = scrollOffset;
+    loopGroup.position.z = scrollOffset;
   }
 }
 
@@ -184,14 +186,17 @@ export function createSun() {
 
 export function createScenery() {
   sceneryGroup = new THREE.Group();
+  loopGroup = new THREE.Group();
+  sceneryGroup.add(loopGroup);
   scrollOffset = 0;
   
   windTurbines = [];
-  addRollingHills(sceneryGroup);
-  addForestBackdrops(sceneryGroup);
-  sceneryPromise = addTrees(sceneryGroup);
-  addWindTurbines(sceneryGroup, windTurbines);
-  addGridFloor(sceneryGroup);
+  addRollingHills(loopGroup);
+  addForestBackdrops(loopGroup);
+  sceneryPromise = addTrees(loopGroup);
+  addWindTurbines(loopGroup, windTurbines);
+  addGridFloor(loopGroup);
+  addDistantMountains(sceneryGroup);
   
   return sceneryGroup;
 }
@@ -202,8 +207,8 @@ export function getSceneryPromise() {
 
 export function resetScenery() {
   scrollOffset = 0;
-  if (sceneryGroup) {
-    sceneryGroup.position.z = 0;
+  if (loopGroup) {
+    loopGroup.position.z = 0;
   }
 }
 
@@ -280,7 +285,6 @@ function createForestBackdropTexture() {
 
 function addForestBackdrops(group) {
   const backdropTex = createForestBackdropTexture();
-  backdropTex.repeat.set(5, 1);
 
   const backdropMaterial = new THREE.MeshBasicMaterial({
     map: backdropTex,
@@ -290,7 +294,9 @@ function addForestBackdrops(group) {
     fog: true
   });
 
-  const wallLength = SCENERY_LOOP_LENGTH;
+  // Long enough that after a wrap there is still forest past the fog horizon
+  const wallLength = SCENERY_LOOP_LENGTH * (LOOP_SEGMENTS + 1);
+  backdropTex.repeat.set(5 * (LOOP_SEGMENTS + 1), 1);
   const wallHeight = 28;
   const wallGeometry = new THREE.PlaneGeometry(wallLength, wallHeight);
 
@@ -337,7 +343,7 @@ function addRollingHills(group) {
   
   // Gentle rolling forested ridges placed safely behind the forest tree lines (x > 100 or x < -100)
   const ridgePositions = [
-    // Left side background hills
+    // Left side background hills (z within one loop period)
     { x: -220, z: -100, radius: 140, height: 22, mat: hillMaterial },
     { x: -240, z: -280, radius: 160, height: 28, mat: midHillMaterial },
     { x: -210, z: -460, radius: 150, height: 24, mat: hillMaterial },
@@ -349,21 +355,40 @@ function addRollingHills(group) {
     { x: 240, z: -300, radius: 160, height: 28, mat: midHillMaterial },
     { x: 210, z: -480, radius: 150, height: 24, mat: hillMaterial },
     { x: 320, z: -220, radius: 220, height: 42, mat: farHillMaterial },
-    { x: 340, z: -470, radius: 240, height: 48, mat: farHillMaterial },
-
-    // Distant horizon mountain ranges at the far end (safely offset so they never intersect the highway corridor)
-    { x: -300, z: -680, radius: 220, height: 38, mat: farHillMaterial },
-    { x: 300,  z: -690, radius: 220, height: 38, mat: farHillMaterial },
-    { x: -440, z: -780, radius: 340, height: 52, mat: farHillMaterial },
-    { x: 440,  z: -780, radius: 340, height: 52, mat: farHillMaterial }
+    { x: 340, z: -470, radius: 240, height: 48, mat: farHillMaterial }
   ];
   
   for (const pos of ridgePositions) {
+    for (let copy = 0; copy < LOOP_SEGMENTS; copy++) {
+      const geometry = new THREE.SphereGeometry(pos.radius, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+      const hill = new THREE.Mesh(geometry, pos.mat);
+      hill.scale.y = pos.height / pos.radius;
+      hill.position.set(pos.x, 0, pos.z - copy * SCENERY_LOOP_LENGTH);
+      group.add(hill);
+    }
+  }
+}
+
+function addDistantMountains(group) {
+  const farHillMaterial = new THREE.MeshBasicMaterial({
+    color: 0x3d4b3e,
+    side: THREE.DoubleSide
+  });
+
+  // Static horizon ranges — not in the scrolling loop, so they never slide up beside the road
+  const mountainPositions = [
+    { x: -300, z: -680, radius: 220, height: 38 },
+    { x: 300,  z: -690, radius: 220, height: 38 },
+    { x: -440, z: -780, radius: 340, height: 52 },
+    { x: 440,  z: -780, radius: 340, height: 52 }
+  ];
+
+  for (const pos of mountainPositions) {
     const geometry = new THREE.SphereGeometry(pos.radius, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-    const hill = new THREE.Mesh(geometry, pos.mat);
-    hill.scale.y = pos.height / pos.radius;
-    hill.position.set(pos.x, 0, pos.z);
-    group.add(hill);
+    const mountain = new THREE.Mesh(geometry, farHillMaterial);
+    mountain.scale.y = pos.height / pos.radius;
+    mountain.position.set(pos.x, 0, pos.z);
+    group.add(mountain);
   }
 }
 
@@ -443,8 +468,9 @@ async function addTrees(group) {
       return tree;
     };
 
-    // Generate deep, dense multi-layered forest along the scrolling loop (SCENERY_LOOP_LENGTH = 600)
-    for (let z = 0; z > -SCENERY_LOOP_LENGTH; z -= 8) {
+    // Generate deep, dense multi-layered forest across tiled loop segments so the woods never run out
+    const forestLength = SCENERY_LOOP_LENGTH * LOOP_SEGMENTS;
+    for (let z = 0; z > -forestLength; z -= 8) {
       // LEFT SIDE FOREST LAYERS
       // Layer 0: Eye-level undergrowth & bushy saplings (blocks ground gaps between trunks)
       if (Math.random() > 0.1) {
@@ -525,7 +551,14 @@ function addWindTurbines(group, turbineArray) {
     { x: 90, z: -580 },
   ];
   
+  const tiledTurbines = [];
   for (const pos of turbinePositions) {
+    for (let copy = 0; copy < LOOP_SEGMENTS; copy++) {
+      tiledTurbines.push({ x: pos.x, z: pos.z - copy * SCENERY_LOOP_LENGTH });
+    }
+  }
+
+  for (const pos of tiledTurbines) {
     const turbineGroup = new THREE.Group();
     
     const poleGeometry = new THREE.CylinderGeometry(0.3, 0.5, 25, 8);
@@ -562,8 +595,9 @@ function addWindTurbines(group, turbineArray) {
 }
 
 function addGridFloor(group) {
-  const floorSize = 1200;
-  const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
+  const floorWidth = 1200;
+  const floorLength = SCENERY_LOOP_LENGTH * (LOOP_SEGMENTS + 1);
+  const floorGeometry = new THREE.PlaneGeometry(floorWidth, floorLength);
   const floorMaterial = new THREE.MeshBasicMaterial({ 
     color: 0x1a2117,
     side: THREE.DoubleSide
@@ -571,6 +605,6 @@ function addGridFloor(group) {
   
   const floor = new THREE.Mesh(floorGeometry, floorMaterial);
   floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, -0.1, -400);
+  floor.position.set(0, -0.1, -floorLength / 2);
   group.add(floor);
 }
