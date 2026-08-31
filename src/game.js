@@ -11,7 +11,7 @@ export class Game {
     this.renderer = renderer;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
-      75,
+      58,
       window.innerWidth / window.innerHeight,
       0.02,
       1000

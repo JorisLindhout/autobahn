@@ -11,7 +11,7 @@ export class Cockpit {
 
     // Driver seat perspective:
     // With x = 0.525, the steering wheel and instrument cluster are centered in the driver's view
-    this.driverOffset = new THREE.Vector3(0.525, -0.44, -0.32);
+    this.driverOffset = new THREE.Vector3(0.525, -0.42, -0.28);
 
     this.loadModel();
   }
