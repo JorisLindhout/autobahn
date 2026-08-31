@@ -187,6 +187,7 @@ export function createScenery() {
   
   windTurbines = [];
   addRollingHills(sceneryGroup);
+  addForestBackdrops(sceneryGroup);
   addTrees(sceneryGroup);
   addWindTurbines(sceneryGroup, windTurbines);
   addGridFloor(sceneryGroup);
@@ -201,37 +202,163 @@ export function resetScenery() {
   }
 }
 
+/* Procedural layered forest treeline silhouette backdrop texture */
+function createForestBackdropTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Helper to draw realistic dense spruce/pine treeline silhouette
+  // Note: Canvas (0,0) is TOP (sky). Lower Y in canvas = higher in 3D world.
+  function drawTreeLine(skyY, bottomY, color, minWidth, maxWidth) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, canvas.height);
+    ctx.lineTo(0, bottomY);
+
+    let currentX = 0;
+    while (currentX < canvas.width + 20) {
+      const treeWidth = minWidth + Math.random() * (maxWidth - minWidth);
+      const treeHeight = (bottomY - skyY) * (0.65 + Math.random() * 0.35);
+      const tipX = currentX + treeWidth * 0.5;
+      const tipY = bottomY - treeHeight;
+
+      // Jagged spruce steps going up
+      const steps = 4;
+      for (let s = 1; s <= steps; s++) {
+        const prog = s / steps;
+        const stepX = currentX + (tipX - currentX) * prog + (Math.random() - 0.5) * 2;
+        const stepY = bottomY - treeHeight * prog;
+        ctx.lineTo(stepX, stepY);
+      }
+
+      ctx.lineTo(tipX, tipY);
+
+      // Jagged spruce steps going down
+      for (let s = steps; s >= 1; s--) {
+        const prog = s / steps;
+        const stepX = tipX + (currentX + treeWidth - tipX) * (1 - prog) + (Math.random() - 0.5) * 2;
+        const stepY = bottomY - treeHeight * prog;
+        ctx.lineTo(stepX, stepY);
+      }
+
+      currentX += treeWidth * 0.7;
+    }
+
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Layer 1 (Far backdrop, highest reaching, hazy slate green)
+  drawTreeLine(30, 210, '#36443b', 12, 26);
+
+  // Layer 2 (Mid backdrop, dense pine crowns)
+  drawTreeLine(65, 230, '#223026', 10, 22);
+
+  // Layer 3 (Near backdrop, dark evergreen Black Forest pine)
+  drawTreeLine(95, 255, '#131e16', 8, 18);
+
+  // Dense solid understory base to completely block ground-level sky
+  ctx.fillStyle = '#111913';
+  ctx.fillRect(0, 210, canvas.width, canvas.height - 210);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function addForestBackdrops(group) {
+  const backdropTex = createForestBackdropTexture();
+  backdropTex.repeat.set(5, 1);
+
+  const backdropMaterial = new THREE.MeshBasicMaterial({
+    map: backdropTex,
+    transparent: true,
+    alphaTest: 0.1,
+    side: THREE.DoubleSide,
+    fog: true
+  });
+
+  const wallLength = SCENERY_LOOP_LENGTH;
+  const wallHeight = 28;
+  const wallGeometry = new THREE.PlaneGeometry(wallLength, wallHeight);
+
+  // Left forest backdrop panels (Layer 1 close backdrop, Layer 2 far backdrop)
+  const leftWall1 = new THREE.Mesh(wallGeometry, backdropMaterial);
+  leftWall1.rotation.y = Math.PI / 2;
+  leftWall1.position.set(-48, wallHeight / 2 - 0.5, -wallLength / 2);
+  group.add(leftWall1);
+
+  const leftWall2 = new THREE.Mesh(wallGeometry, backdropMaterial);
+  leftWall2.rotation.y = Math.PI / 2;
+  leftWall2.scale.set(1, 1.4, 1);
+  leftWall2.position.set(-75, (wallHeight * 1.4) / 2 - 0.5, -wallLength / 2);
+  group.add(leftWall2);
+
+  // Right forest backdrop panels
+  const rightWall1 = new THREE.Mesh(wallGeometry, backdropMaterial);
+  rightWall1.rotation.y = -Math.PI / 2;
+  rightWall1.position.set(48, wallHeight / 2 - 0.5, -wallLength / 2);
+  group.add(rightWall1);
+
+  const rightWall2 = new THREE.Mesh(wallGeometry, backdropMaterial);
+  rightWall2.rotation.y = -Math.PI / 2;
+  rightWall2.scale.set(1, 1.4, 1);
+  rightWall2.position.set(75, (wallHeight * 1.4) / 2 - 0.5, -wallLength / 2);
+  group.add(rightWall2);
+}
+
 function addRollingHills(group) {
   const hillMaterial = new THREE.MeshBasicMaterial({ 
-    color: 0x424b3e,
+    color: 0x222a21,
+    side: THREE.DoubleSide
+  });
+
+  const midHillMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0x2d392c,
+    side: THREE.DoubleSide
+  });
+
+  const farHillMaterial = new THREE.MeshBasicMaterial({ 
+    color: 0x3d4b3e,
     side: THREE.DoubleSide
   });
   
-  const hillPositions = [
-    { x: -180, z: -500, width: 200, height: 25 },
-    { x: -60, z: -550, width: 180, height: 20 },
-    { x: 100, z: -520, width: 220, height: 30 },
-    { x: 200, z: -580, width: 160, height: 22 },
-    { x: -120, z: -600, width: 250, height: 35 },
-    { x: 80, z: -620, width: 200, height: 28 },
-    { x: -200, z: -650, width: 300, height: 40 },
-    { x: 150, z: -680, width: 280, height: 38 },
+  // Gentle rolling forested ridges placed safely behind the forest tree lines (x > 100 or x < -100)
+  const ridgePositions = [
+    // Left side background hills
+    { x: -220, z: -100, radius: 140, height: 22, mat: hillMaterial },
+    { x: -240, z: -280, radius: 160, height: 28, mat: midHillMaterial },
+    { x: -210, z: -460, radius: 150, height: 24, mat: hillMaterial },
+    { x: -320, z: -200, radius: 220, height: 42, mat: farHillMaterial },
+    { x: -340, z: -450, radius: 240, height: 48, mat: farHillMaterial },
+
+    // Right side background hills
+    { x: 220, z: -120, radius: 140, height: 22, mat: hillMaterial },
+    { x: 240, z: -300, radius: 160, height: 28, mat: midHillMaterial },
+    { x: 210, z: -480, radius: 150, height: 24, mat: hillMaterial },
+    { x: 320, z: -220, radius: 220, height: 42, mat: farHillMaterial },
+    { x: 340, z: -470, radius: 240, height: 48, mat: farHillMaterial },
+
+    // Distant horizon mountain ranges at the far end
+    { x: -180, z: -680, radius: 220, height: 35, mat: farHillMaterial },
+    { x: 0,    z: -720, radius: 260, height: 32, mat: farHillMaterial },
+    { x: 180,  z: -690, radius: 220, height: 36, mat: farHillMaterial },
+    { x: -380, z: -780, radius: 320, height: 50, mat: farHillMaterial },
+    { x: 380,  z: -780, radius: 320, height: 50, mat: farHillMaterial }
   ];
   
-  for (const pos of hillPositions) {
-    const geometry = new THREE.SphereGeometry(pos.width / 2, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-    const hill = new THREE.Mesh(geometry, hillMaterial);
-    hill.scale.y = pos.height / (pos.width / 2);
+  for (const pos of ridgePositions) {
+    const geometry = new THREE.SphereGeometry(pos.radius, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+    const hill = new THREE.Mesh(geometry, pos.mat);
+    hill.scale.y = pos.height / pos.radius;
     hill.position.set(pos.x, 0, pos.z);
-    group.add(hill);
-  }
-  
-  const farHillMaterial = new THREE.MeshBasicMaterial({ color: 0x5a6557 });
-  for (let i = 0; i < 8; i++) {
-    const geometry = new THREE.SphereGeometry(150, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-    const hill = new THREE.Mesh(geometry, farHillMaterial);
-    hill.scale.y = 0.15;
-    hill.position.set(-400 + i * 120, 0, -750);
     group.add(hill);
   }
 }
@@ -255,7 +382,8 @@ async function addTrees(group) {
       0x1c2b20, // cold forest pine
       0x142018, // dark spruce
       0x223026, // slate pine
-      0x1a241d  // overcast evergreen
+      0x1a241d, // overcast evergreen
+      0x111c15  // shadowy deep pine
     ];
 
     const foliageMaterials = foliageColors.map(color => new THREE.MeshStandardMaterial({
@@ -265,30 +393,35 @@ async function addTrees(group) {
     }));
 
     const trunkMaterial = new THREE.MeshStandardMaterial({
-      color: 0x2a231c,
+      color: 0x241d17,
       roughness: 0.95,
       metalness: 0.0
     });
 
-    const createVariedTree = (baseScaleMin, baseScaleMax, posX, posZ) => {
+    const createVariedTree = (baseScaleMin, baseScaleMax, posX, posZ, isUndergrowth = false) => {
       const tree = baseTree.clone(true);
 
-      // 1. Non-uniform scale variation: some trees are tall and slender, others short and bushy
       const overallScale = baseScaleMin + Math.random() * (baseScaleMax - baseScaleMin);
-      const widthFactor = 0.8 + Math.random() * 0.45;   // 0.8x to 1.25x width
-      const heightFactor = 0.85 + Math.random() * 0.55; // 0.85x to 1.4x height
+      // Undergrowth is bushier and squashed lower to block low ground sightlines
+      const widthFactor = isUndergrowth 
+        ? 1.1 + Math.random() * 0.5 
+        : 0.8 + Math.random() * 0.45;
+      const heightFactor = isUndergrowth 
+        ? 0.65 + Math.random() * 0.35 
+        : 0.85 + Math.random() * 0.55;
+
       tree.scale.set(
         overallScale * widthFactor,
         overallScale * heightFactor,
         overallScale * widthFactor
       );
 
-      // 2. Full 360° random heading + subtle natural tilt (1° to 3°)
+      // Random heading + subtle natural tilt
       tree.rotation.y = Math.random() * Math.PI * 2;
       tree.rotation.x = (Math.random() - 0.5) * 0.08;
       tree.rotation.z = (Math.random() - 0.5) * 0.08;
 
-      // 3. Randomize foliage material tint on this instance
+      // Randomize foliage material tint on this instance
       const mat = foliageMaterials[Math.floor(Math.random() * foliageMaterials.length)];
       tree.traverse((child) => {
         if (child.isMesh) {
@@ -306,40 +439,70 @@ async function addTrees(group) {
       return tree;
     };
 
-    // Generate natural layered tree line along the scrolling loop (SCENERY_LOOP_LENGTH = 600)
-    for (let z = 0; z > -SCENERY_LOOP_LENGTH; z -= 14) {
-      // Left side: Row 1 (close roadside), Row 2 (mid distance), Row 3 (background hillside)
+    // Generate deep, dense multi-layered forest along the scrolling loop (SCENERY_LOOP_LENGTH = 600)
+    for (let z = 0; z > -SCENERY_LOOP_LENGTH; z -= 8) {
+      // LEFT SIDE FOREST LAYERS
+      // Layer 0: Eye-level undergrowth & bushy saplings (blocks ground gaps between trunks)
+      if (Math.random() > 0.1) {
+        const x = -13 - Math.random() * 6;
+        const jitterZ = z + (Math.random() - 0.5) * 7;
+        treeContainer.add(createVariedTree(0.8, 1.7, x, jitterZ, true));
+      }
+      // Layer 1: Roadside mature fir trees
       if (Math.random() > 0.15) {
-        const x = -15 - Math.random() * 6;
-        const jitterZ = z + (Math.random() - 0.5) * 10;
+        const x = -16 - Math.random() * 6;
+        const jitterZ = z + (Math.random() - 0.5) * 8;
         treeContainer.add(createVariedTree(1.8, 3.2, x, jitterZ));
       }
-      if (Math.random() > 0.3) {
-        const x = -24 - Math.random() * 10;
-        const jitterZ = z + (Math.random() - 0.5) * 12;
-        treeContainer.add(createVariedTree(2.4, 4.2, x, jitterZ));
+      // Layer 2: Mid forest canopy
+      if (Math.random() > 0.2) {
+        const x = -25 - Math.random() * 9;
+        const jitterZ = z + (Math.random() - 0.5) * 10;
+        treeContainer.add(createVariedTree(2.6, 4.2, x, jitterZ));
       }
-      if (Math.random() > 0.45) {
-        const x = -38 - Math.random() * 16;
+      // Layer 3: Deep forest canopy
+      if (Math.random() > 0.25) {
+        const x = -38 - Math.random() * 12;
+        const jitterZ = z + (Math.random() - 0.5) * 12;
+        treeContainer.add(createVariedTree(3.4, 5.2, x, jitterZ));
+      }
+      // Layer 4: Distant forest hillside
+      if (Math.random() > 0.35) {
+        const x = -54 - Math.random() * 16;
         const jitterZ = z + (Math.random() - 0.5) * 14;
-        treeContainer.add(createVariedTree(3.0, 5.2, x, jitterZ));
+        treeContainer.add(createVariedTree(4.2, 6.2, x, jitterZ));
       }
 
-      // Right side: Row 1 (close roadside), Row 2 (mid distance), Row 3 (background hillside)
+      // RIGHT SIDE FOREST LAYERS
+      // Layer 0: Eye-level undergrowth & bushy saplings
+      if (Math.random() > 0.1) {
+        const x = 13 + Math.random() * 6;
+        const jitterZ = z + (Math.random() - 0.5) * 7;
+        treeContainer.add(createVariedTree(0.8, 1.7, x, jitterZ, true));
+      }
+      // Layer 1: Roadside mature fir trees
       if (Math.random() > 0.15) {
-        const x = 15 + Math.random() * 6;
-        const jitterZ = z + (Math.random() - 0.5) * 10;
+        const x = 16 + Math.random() * 6;
+        const jitterZ = z + (Math.random() - 0.5) * 8;
         treeContainer.add(createVariedTree(1.8, 3.2, x, jitterZ));
       }
-      if (Math.random() > 0.3) {
-        const x = 24 + Math.random() * 10;
-        const jitterZ = z + (Math.random() - 0.5) * 12;
-        treeContainer.add(createVariedTree(2.4, 4.2, x, jitterZ));
+      // Layer 2: Mid forest canopy
+      if (Math.random() > 0.2) {
+        const x = 25 + Math.random() * 9;
+        const jitterZ = z + (Math.random() - 0.5) * 10;
+        treeContainer.add(createVariedTree(2.6, 4.2, x, jitterZ));
       }
-      if (Math.random() > 0.45) {
-        const x = 38 + Math.random() * 16;
+      // Layer 3: Deep forest canopy
+      if (Math.random() > 0.25) {
+        const x = 38 + Math.random() * 12;
+        const jitterZ = z + (Math.random() - 0.5) * 12;
+        treeContainer.add(createVariedTree(3.4, 5.2, x, jitterZ));
+      }
+      // Layer 4: Distant forest hillside
+      if (Math.random() > 0.35) {
+        const x = 54 + Math.random() * 16;
         const jitterZ = z + (Math.random() - 0.5) * 14;
-        treeContainer.add(createVariedTree(3.0, 5.2, x, jitterZ));
+        treeContainer.add(createVariedTree(4.2, 6.2, x, jitterZ));
       }
     }
   } catch (err) {
@@ -395,10 +558,10 @@ function addWindTurbines(group, turbineArray) {
 }
 
 function addGridFloor(group) {
-  const floorSize = 1000;
+  const floorSize = 1200;
   const floorGeometry = new THREE.PlaneGeometry(floorSize, floorSize);
   const floorMaterial = new THREE.MeshBasicMaterial({ 
-    color: 0x384133,
+    color: 0x1a2117,
     side: THREE.DoubleSide
   });
   
