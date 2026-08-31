@@ -87,7 +87,7 @@ export class Cockpit {
     this.cockpitGroup.visible = false;
   }
 
-  update(steerInput, speed) {
+  update(steerInput, speed, isOnShoulder = false, shoulderIntensity = 0) {
     if (!this.isReady) return;
 
     // Rotate the 3D steering wheel along its local steering column axis (local Y axis)
@@ -105,11 +105,22 @@ export class Cockpit {
 
     // Subtle cockpit vibration and sway based on speed and steering
     const speedRatio = Math.min(speed / 80, 1);
-    const vibration = Math.sin(Date.now() * 0.03) * 0.0025 * speedRatio;
-    const sway = -steerInput * 0.015;
+    let vibration = Math.sin(Date.now() * 0.03) * 0.0025 * speedRatio;
+    let sway = -steerInput * 0.015;
+    let chassisRoll = steerInput * 0.018;
+
+    // High-frequency gravel & rumble strip vibration when driving on the shoulder
+    if (isOnShoulder) {
+      const now = Date.now();
+      const rumble = (Math.sin(now * 0.09) * 0.5 + Math.cos(now * 0.14) * 0.5) * (0.008 + shoulderIntensity * 0.007);
+      const lateralJitter = Math.sin(now * 0.11) * 0.005;
+      vibration += rumble;
+      sway += lateralJitter;
+      chassisRoll += (Math.sin(now * 0.08) * 0.008);
+    }
 
     this.cockpitGroup.position.y = vibration;
     this.cockpitGroup.position.x = sway;
-    this.cockpitGroup.rotation.z = steerInput * 0.018; // subtle chassis lean into turns
+    this.cockpitGroup.rotation.z = chassisRoll; // subtle chassis lean into turns & shoulder shake
   }
 }

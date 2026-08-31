@@ -21,11 +21,13 @@ export class Collision {
   }
   
   checkRoadBoundary(playerX, roadWidth) {
-    // Road asphalt is at ±(roadWidth / 2) = ±6.0m, shoulder extends to ±8.0m with guardrails at ±7.5m.
-    // Give the player a generous buffer to ride onto the shoulder before crashing at the guardrail barrier (~6.8m).
-    const guardrailDistance = roadWidth / 2 + 1.5;
+    // Road asphalt is at ±(roadWidth / 2) = ±6.0m.
+    // Guardrail center is at ±(roadWidth / 2 + 1.5) = ±7.5m (inner face at ~7.42m).
+    // Player width is 2.0m (half-width 1.0m).
+    // When |playerX| > 6.42m, the car's outer side physically hits the guardrail barrier.
+    const guardrailInnerFace = roadWidth / 2 + 1.5 - 0.08;
     const halfPlayer = this.playerWidth / 2;
-    const boundary = guardrailDistance - (halfPlayer * 0.7);
+    const boundary = guardrailInnerFace - halfPlayer;
     
     return Math.abs(playerX) > boundary;
   }

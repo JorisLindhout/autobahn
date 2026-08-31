@@ -33,6 +33,12 @@ export class Game {
     this.laneWidth = 4;
     this.roadWidth = 12;
     this.gameTime = 0;
+
+    // Shoulder driving mechanics
+    this.shoulderTimer = 0;
+    this.maxShoulderTime = 2.5; // Seconds allowed on shoulder before spinning out / crashing
+    this.isOnShoulder = false;
+    this.shoulderHazardEl = document.getElementById('shoulder-hazard');
     
     this.onGameOver = null;
     
@@ -79,6 +85,13 @@ export class Game {
     this.playerX = 0;
     this.playerLane = 1;
     this.gameTime = 0;
+    this.shoulderTimer = 0;
+    this.isOnShoulder = false;
+
+    if (this.shoulderHazardEl) {
+      this.shoulderHazardEl.classList.remove('active');
+      this.shoulderHazardEl.style.opacity = '0';
+    }
     
     this.road.reset();
     this.traffic.reset();
@@ -90,6 +103,11 @@ export class Game {
   stop() {
     this.gameState = 'gameover';
     this.controls.disable();
+
+    if (this.shoulderHazardEl) {
+      this.shoulderHazardEl.classList.remove('active');
+      this.shoulderHazardEl.style.opacity = '0';
+    }
     
     if (this.onGameOver) {
       this.onGameOver();
@@ -119,8 +137,42 @@ export class Game {
     this.playerX = Math.max(-maxX, Math.min(maxX, this.playerX));
     
     this.camera.position.x = this.playerX;
+
+    // Shoulder driving state and friction
+    this.isOnShoulder = Math.abs(this.playerX) > 5.1;
+
+    if (this.isOnShoulder) {
+      this.shoulderTimer += deltaTime;
+      // Shoulder friction drag
+      this.speed = Math.max(this.baseSpeed * 0.8, this.speed - 6.0 * deltaTime);
+
+      if (this.shoulderHazardEl) {
+        const ratio = Math.min(this.shoulderTimer / this.maxShoulderTime, 1.0);
+        this.shoulderHazardEl.classList.add('active');
+        this.shoulderHazardEl.style.setProperty('--shoulder-opacity', (0.25 + ratio * 0.65).toFixed(2));
+      }
+
+      if (this.shoulderTimer >= this.maxShoulderTime) {
+        this.stop();
+        return;
+      }
+    } else {
+      if (this.shoulderTimer > 0) {
+        this.shoulderTimer = Math.max(0, this.shoulderTimer - deltaTime * 2.0);
+        if (this.shoulderHazardEl) {
+          const ratio = this.shoulderTimer / this.maxShoulderTime;
+          if (ratio <= 0.05) {
+            this.shoulderHazardEl.classList.remove('active');
+            this.shoulderHazardEl.style.opacity = '0';
+          } else {
+            this.shoulderHazardEl.style.setProperty('--shoulder-opacity', (ratio * 0.4).toFixed(2));
+          }
+        }
+      }
+    }
     
-    this.cockpit.update(steerInput, this.speed);
+    const shoulderRatio = this.shoulderTimer / this.maxShoulderTime;
+    this.cockpit.update(steerInput, this.speed, this.isOnShoulder, shoulderRatio);
     
     this.road.update(deltaTime, this.speed);
     

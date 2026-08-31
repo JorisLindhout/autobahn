@@ -298,10 +298,12 @@ export class Traffic {
   }
 
   getAvailableLanes() {
+    // Find cars near the spawn area
     const recentCars = this.cars.filter(
       car =>
-        car.position.z < this.spawnDistance + 25 &&
-        car.position.z > this.spawnDistance - 15
+        car.userData.active &&
+        car.position.z < this.spawnDistance + 30 &&
+        car.position.z > this.spawnDistance - 20
     );
 
     const occupiedLanes = new Set(recentCars.map(car => car.userData.lane));
@@ -313,8 +315,22 @@ export class Traffic {
       }
     }
 
+    // Anti-Blockade Spawn Gatekeeper:
+    // If all 3 lanes have cars in the spawn region, or if spawning in an available lane
+    // would align 3 cars within a tight longitudinal gap (< 16m), delay spawn.
     if (available.length === 0) {
-      return [Math.floor(Math.random() * 3)];
+      return []; // Wait for traffic ahead to clear
+    }
+
+    // If 2 lanes are occupied, check if the occupied cars are already clustered side-by-side
+    if (available.length === 1 && recentCars.length >= 2) {
+      const zPositions = recentCars.map(c => c.position.z);
+      const minZ = Math.min(...zPositions);
+      const maxZ = Math.max(...zPositions);
+      // If the existing cars are closely aligned in Z, avoid dropping the 3rd car right next to them
+      if (maxZ - minZ < 16.0) {
+        return []; // Hold spawn until gap widens
+      }
     }
 
     return available;
@@ -410,6 +426,40 @@ export class Traffic {
     }
 
     return { leadCar: nearestLead, distance: minDistance };
+  }
+
+  resolveBlockades(deltaTime) {
+    // Detect if cars across lanes 0, 1, and 2 form an impassable side-by-side wall
+    // within the visible / approaching horizon (Z between -110m and -10m)
+    const activeRoadCars = this.cars.filter(
+      c => c.userData.active && c.position.z < -10 && c.position.z > -110
+    );
+
+    const lane0Cars = activeRoadCars.filter(c => (c.userData.lane === 0 || c.userData.targetLane === 0));
+    const lane1Cars = activeRoadCars.filter(c => (c.userData.lane === 1 || c.userData.targetLane === 1));
+    const lane2Cars = activeRoadCars.filter(c => (c.userData.lane === 2 || c.userData.targetLane === 2));
+
+    for (const c0 of lane0Cars) {
+      for (const c1 of lane1Cars) {
+        if (Math.abs(c0.position.z - c1.position.z) > 10.0) continue;
+
+        for (const c2 of lane2Cars) {
+          const gap02 = Math.abs(c0.position.z - c2.position.z);
+          const gap12 = Math.abs(c1.position.z - c2.position.z);
+
+          // All 3 cars are within a tight longitudinal cluster (< 11m), completely blocking all lanes
+          if (gap02 < 11.0 && gap12 < 10.0) {
+            // Dissolve the wall proactively:
+            // 1. Left lane car accelerates to surge ahead and clear the passing lane
+            c0.userData.speed = Math.min(c0.userData.speed + 7.0 * deltaTime, 36.0);
+            c0.userData.baseSpeed = Math.max(c0.userData.baseSpeed, 28.0);
+
+            // 2. Right lane car eases off speed to let the pack stretch out
+            c2.userData.speed = Math.max(c2.userData.speed - 5.0 * deltaTime, 12.0);
+          }
+        }
+      }
+    }
   }
 
   reset() {
@@ -534,7 +584,10 @@ export class Traffic {
       }
     }
 
-    // 3. Move cars along Z and despawn cars that pass behind the camera
+    // 3. Active Anti-Blockade Flow: Dissolve side-by-side 3-lane walls dynamically
+    this.resolveBlockades(deltaTime);
+
+    // 4. Move cars along Z and despawn cars that pass behind the camera
     for (let i = this.cars.length - 1; i >= 0; i--) {
       const car = this.cars[i];
       const relativeSpeed = playerSpeed - car.userData.speed;
