@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 
 export class Cockpit {
   constructor(camera) {
@@ -15,7 +16,9 @@ export class Cockpit {
     this.driverOffset = new THREE.Vector3(0.525, -0.42, -0.28);
 
     this.setupCrackOverlay();
-    this.loadModel();
+    this.camera.add(this.cockpitGroup);
+    this.hide();
+    this.loadPromise = this.loadModel();
   }
 
   setupCrackOverlay() {
@@ -221,6 +224,46 @@ export class Cockpit {
     }
   }
 
+  createSmoothSteeringWheelGeometry() {
+    const geometries = [];
+
+    // 1. High-fidelity smooth outer rim (64 tubular segments for a perfect curve)
+    const rimGeo = new THREE.TorusGeometry(0.108, 0.0085, 16, 64);
+    rimGeo.rotateX(Math.PI / 2); // Align into local X-Z plane
+    geometries.push(rimGeo);
+
+    // 2. Central hub disc
+    const hubGeo = new THREE.CylinderGeometry(0.030, 0.030, 0.012, 32);
+    geometries.push(hubGeo);
+
+    // 3. Center horn button / emblem
+    const capGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.015, 32);
+    capGeo.translate(0, 0.001, 0);
+    geometries.push(capGeo);
+
+    // 4. Classic 3-spoke sports layout (Left, Right, Down)
+    const leftSpoke = new THREE.BoxGeometry(0.082, 0.006, 0.018);
+    leftSpoke.translate(-0.065, 0, 0);
+    geometries.push(leftSpoke);
+
+    const rightSpoke = new THREE.BoxGeometry(0.082, 0.006, 0.018);
+    rightSpoke.translate(0.065, 0, 0);
+    geometries.push(rightSpoke);
+
+    const bottomSpoke = new THREE.BoxGeometry(0.018, 0.006, 0.082);
+    bottomSpoke.translate(0, 0, 0.065);
+    geometries.push(bottomSpoke);
+
+    // Merge into a single BufferGeometry for optimal single draw-call performance
+    const merged = BufferGeometryUtils.mergeGeometries(geometries);
+    merged.computeVertexNormals();
+
+    // Clean up temporary constituent geometries
+    geometries.forEach(geo => geo.dispose());
+
+    return merged;
+  }
+
   async loadModel() {
     const loader = new GLTFLoader();
 
@@ -266,6 +309,12 @@ export class Cockpit {
       // Find the steering wheel object
       this.steeringWheel = root.getObjectByName('Steering_wheel');
       if (this.steeringWheel) {
+        if (this.steeringWheel.isMesh) {
+          if (this.steeringWheel.geometry) {
+            this.steeringWheel.geometry.dispose();
+          }
+          this.steeringWheel.geometry = this.createSmoothSteeringWheelGeometry();
+        }
         // Cache rest quaternion for proper axis rotation
         this.steeringWheelBaseQuaternion = this.steeringWheel.quaternion.clone();
       }
@@ -289,12 +338,13 @@ export class Cockpit {
       root.rotation.set(0, Math.PI, 0);
 
       this.cockpitGroup.add(root);
-      this.camera.add(this.cockpitGroup);
 
       this.isReady = true;
       console.log('3D Cockpit initialized with smooth filtering and centered perspective');
+      return true;
     } catch (error) {
       console.error('Failed to load cockpit model:', error);
+      return false;
     }
   }
 

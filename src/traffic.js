@@ -81,7 +81,7 @@ export class Traffic {
     this.brakeRate = 4.0;                // How fast cars brake when stuck behind
     this.accelRate = 2.0;                // How fast cars regain desired speed
 
-    this.loadAllAssets();
+    this.loadPromise = this.loadAllAssets();
   }
 
   async loadAllAssets() {
@@ -136,8 +136,10 @@ export class Traffic {
 
       this.createCarPool();
       this.spawnInitialCars();
+      return true;
     } catch (error) {
       console.error('Failed to load traffic assets:', error);
+      return false;
     }
   }
 

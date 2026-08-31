@@ -4,7 +4,7 @@ import { Road } from './road.js';
 import { Traffic } from './traffic.js';
 import { Cockpit } from './cockpit.js';
 import { Collision } from './collision.js';
-import { createSky, createSun, createScenery, updateScenery, resetScenery } from './visuals.js';
+import { createSky, createSun, createScenery, updateScenery, resetScenery, getSceneryPromise } from './visuals.js';
 
 export class Game {
   constructor(renderer) {
@@ -46,10 +46,51 @@ export class Game {
     this.onGameOver = null;
     
     this.setupScene();
+
+    this.isReady = false;
+    this.readyPromise = this.initResources();
+
     this.animate = this.animate.bind(this);
     this.lastTime = 0;
     
     requestAnimationFrame(this.animate);
+  }
+
+  async initResources() {
+    try {
+      const promises = [
+        this.cockpit.loadPromise,
+        this.traffic.loadPromise,
+        getSceneryPromise()
+      ].filter(Boolean);
+
+      await Promise.all(promises);
+
+      // Pre-compile scene & shaders on GPU to prevent frame drops on game start
+      if (this.renderer && typeof this.renderer.compileAsync === 'function') {
+        try {
+          await this.renderer.compileAsync(this.scene, this.camera);
+        } catch (e) {
+          // Fallback / ignore compile errors
+        }
+      } else if (this.renderer && typeof this.renderer.compile === 'function') {
+        try {
+          this.renderer.compile(this.scene, this.camera);
+        } catch (e) {
+          // Fallback / ignore compile errors
+        }
+      }
+    } catch (err) {
+      console.error('Resource initialization error:', err);
+    } finally {
+      this.isReady = true;
+    }
+    return true;
+  }
+
+  async whenReady() {
+    if (this.isReady) return true;
+    return this.readyPromise;
   }
   
   setupScene() {

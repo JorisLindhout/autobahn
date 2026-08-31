@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 let windTurbines = [];
 let sceneryGroup = null;
+let sceneryPromise = null;
 let scrollOffset = 0;
 const SCENERY_LOOP_LENGTH = 600;
 const PARALLAX_FACTOR = 0.15;
@@ -188,11 +189,15 @@ export function createScenery() {
   windTurbines = [];
   addRollingHills(sceneryGroup);
   addForestBackdrops(sceneryGroup);
-  addTrees(sceneryGroup);
+  sceneryPromise = addTrees(sceneryGroup);
   addWindTurbines(sceneryGroup, windTurbines);
   addGridFloor(sceneryGroup);
   
   return sceneryGroup;
+}
+
+export function getSceneryPromise() {
+  return sceneryPromise;
 }
 
 export function resetScenery() {

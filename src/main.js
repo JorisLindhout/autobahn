@@ -173,6 +173,13 @@ async function startGame() {
   // Desktop in dev mode uses keyboard controls for development/testing.
   if (!isMobileDevice()) {
     if (isDevMode()) {
+      if (!game.isReady) {
+        startButton.textContent = 'LOADING...';
+        startButton.style.pointerEvents = 'none';
+        await game.whenReady();
+        startButton.textContent = 'TAP TO START';
+        startButton.style.pointerEvents = '';
+      }
       hideAllScreens();
       game.start();
       return;
@@ -210,6 +217,14 @@ async function startGame() {
     return;
   }
 
+  if (!game.isReady) {
+    startButton.textContent = 'LOADING...';
+    startButton.style.pointerEvents = 'none';
+    await game.whenReady();
+    startButton.textContent = 'TAP TO START';
+    startButton.style.pointerEvents = '';
+  }
+
   hideAllScreens();
   game.start();
 }
@@ -219,7 +234,10 @@ game.onGameOver = () => {
 };
 
 startButton.addEventListener('click', startGame);
-restartButton.addEventListener('click', () => {
+restartButton.addEventListener('click', async () => {
+  if (!game.isReady) {
+    await game.whenReady();
+  }
   hideAllScreens();
   game.start();
 });
@@ -233,6 +251,9 @@ permissionButton.addEventListener('click', async () => {
     if (!hasGyroscope) {
       showNoGyroScreen();
     } else {
+      if (!game.isReady) {
+        await game.whenReady();
+      }
       hideAllScreens();
       game.start();
     }
