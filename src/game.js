@@ -40,6 +40,9 @@ export class Game {
     this.isOnShoulder = false;
     this.shoulderHazardEl = document.getElementById('shoulder-hazard');
     
+    this.crashTimer = 0;
+    this.crashDuration = 1.0; // Short pause on crash before showing game over screen
+
     this.onGameOver = null;
     
     this.setupScene();
@@ -87,6 +90,7 @@ export class Game {
     this.gameTime = 0;
     this.shoulderTimer = 0;
     this.isOnShoulder = false;
+    this.crashTimer = 0;
 
     if (this.shoulderHazardEl) {
       this.shoulderHazardEl.classList.remove('active');
@@ -97,7 +101,23 @@ export class Game {
     this.traffic.reset();
     this.controls.enable();
     this.cockpit.show();
+    this.cockpit.repairWindshield();
     resetScenery();
+  }
+
+  crash() {
+    if (this.gameState !== 'playing') return;
+
+    this.gameState = 'crashing';
+    this.crashTimer = 0;
+    this.controls.disable();
+
+    if (this.shoulderHazardEl) {
+      this.shoulderHazardEl.classList.remove('active');
+      this.shoulderHazardEl.style.opacity = '0';
+    }
+
+    this.cockpit.crackWindshield();
   }
   
   stop() {
@@ -120,6 +140,30 @@ export class Game {
   }
   
   update(deltaTime) {
+    if (this.gameState === 'crashing') {
+      this.crashTimer += deltaTime;
+
+      // Crash impact: rapid deceleration and chassis shockwave
+      this.speed = Math.max(0, this.speed - this.speed * 4.5 * deltaTime);
+
+      const crashRatio = Math.min(this.crashTimer / this.crashDuration, 1.0);
+      const impactDecay = Math.max(0, 1.0 - crashRatio);
+
+      const joltY = Math.sin(this.crashTimer * 42) * 0.022 * impactDecay;
+      const joltX = Math.cos(this.crashTimer * 32) * 0.018 * impactDecay;
+      this.cockpit.cockpitGroup.position.y = joltY;
+      this.cockpit.cockpitGroup.position.x = joltX;
+
+      this.road.update(deltaTime, this.speed);
+      this.traffic.update(deltaTime, this.speed, this.gameTime);
+      updateScenery(deltaTime, this.speed);
+
+      if (this.crashTimer >= this.crashDuration) {
+        this.stop();
+      }
+      return;
+    }
+
     if (this.gameState !== 'playing') return;
     
     this.gameTime += deltaTime;
@@ -153,7 +197,7 @@ export class Game {
       }
 
       if (this.shoulderTimer >= this.maxShoulderTime) {
-        this.stop();
+        this.crash();
         return;
       }
     } else {
@@ -187,7 +231,7 @@ export class Game {
     );
     
     if (collision) {
-      this.stop();
+      this.crash();
     }
   }
   
