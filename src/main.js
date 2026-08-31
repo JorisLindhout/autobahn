@@ -177,7 +177,7 @@ async function startGame() {
         startButton.textContent = 'LOADING...';
         startButton.style.pointerEvents = 'none';
         await game.whenReady();
-        startButton.textContent = 'TAP TO START';
+        startButton.textContent = 'START';
         startButton.style.pointerEvents = '';
       }
       hideAllScreens();
@@ -221,7 +221,7 @@ async function startGame() {
     startButton.textContent = 'LOADING...';
     startButton.style.pointerEvents = 'none';
     await game.whenReady();
-    startButton.textContent = 'TAP TO START';
+    startButton.textContent = 'START';
     startButton.style.pointerEvents = '';
   }
 
