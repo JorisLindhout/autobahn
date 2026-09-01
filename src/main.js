@@ -174,7 +174,7 @@ async function startGame() {
   if (!isMobileDevice()) {
     if (isDevMode()) {
       if (!game.isReady) {
-        startButton.textContent = 'LOADING...';
+        startButton.textContent = 'Laden';
         startButton.style.pointerEvents = 'none';
         await game.whenReady();
         startButton.textContent = 'START';
@@ -218,7 +218,7 @@ async function startGame() {
   }
 
   if (!game.isReady) {
-    startButton.textContent = 'LOADING...';
+    startButton.textContent = 'Laden';
     startButton.style.pointerEvents = 'none';
     await game.whenReady();
     startButton.textContent = 'START';

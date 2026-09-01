@@ -8,13 +8,29 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="screen-orientation" content="landscape">
   <meta name="theme-color" content="#111111">
+  <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="shortcut icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <meta name="apple-mobile-web-app-title" content="Autobahn" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <meta name="author" content="Joris Lindhout">
+  <meta name="description" content="Grey Autobahn, no destination. Hold your phone like a wheel, miss the Volkswagens, keep to the asphalt. Last as long as the weather lets you.">
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-F58SG2JQXW"></script>
+  <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-F58SG2JQXW');
+  </script>
+
   <title>Autobahn</title>
+  <link rel="preload" href="/fonts/germania-one.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/models/cockpit.glb" as="fetch" crossorigin>
   <link rel="preload" href="/models/golf_mk2.glb" as="fetch" crossorigin>
   <link rel="preload" href="/models/fir_tree.glb" as="fetch" crossorigin>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Germania+One&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -26,12 +42,11 @@
     <div id="title-screen" class="screen">
       <h1>AUTOBAHN</h1>
       <button id="start-button">START</button>
-      <p class="hint">Your Handy is the Lenkrad</p>
     </div>
     
     <div id="game-over-screen" class="screen hidden">
-      <h2>GAME OVER</h2>
-      <button id="restart-button">RETRY</button>
+      <h2>Spielende</h2>
+      <button id="restart-button">Wiederholen</button>
     </div>
     
     <div id="permission-prompt" class="screen hidden">
@@ -43,7 +58,7 @@
       <h2>NO GYROSCOPE</h2>
       <p id="no-gyro-desc">Your device doesn't have motion sensors</p>
       <p class="hint">This game requires a mobile device with gyroscope</p>
-      <button id="no-gyro-retry-button">RETRY</button>
+      <button id="no-gyro-retry-button">Wiederholen</button>
     </div>
     
     <div id="desktop-screen" class="screen hidden">
@@ -52,7 +67,8 @@
       <p class="hint">Please open on your phone or tablet</p>
     </div>
     
-    <div id="rotate-screen" class="overlay">
+    <div id="rotate-screen" class="screen overlay">
+      <h1>AUTOBAHN</h1>
       <div class="rotate-content">
         <div class="phone-icon">
           <div class="phone-body"></div>

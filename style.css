@@ -4,11 +4,46 @@
   box-sizing: border-box;
 }
 
+@font-face {
+  font-family: "Germania One";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("/fonts/germania-one.woff2") format("woff2");
+}
+
+:root {
+  --color-void: #0c100e;
+  --color-page: #0d0d0d;
+  --color-forest: #1c2b20;
+  --color-forest-deep: #1e2620;
+  --color-forest-mid: #3d4540;
+  --color-moss: #6b7368;
+  --color-moss-muted: #8a9188;
+  --color-moss-dim: #7a847c;
+  --color-cream: #e8e2d4;
+  --color-cream-soft: #e4ddd0;
+  --color-cream-muted: #c5c1b4;
+  --color-slate: #5e6d7d;
+  --color-fog: #9faab4;
+  --color-fog-soft: #bac4cc;
+  --color-shadow: rgba(8, 14, 12, 0.9);
+  --overlay-slate: rgba(94, 109, 125, 0.4);
+  --overlay-forest: rgba(28, 43, 32, 0.66);
+  --overlay-void: rgba(12, 16, 14, 0.9);
+  --overlay-vignette: rgba(10, 16, 14, 0.7);
+  --overlay-scanline: rgba(0, 0, 0, 0.25);
+  --glow-rest: rgba(186, 196, 204, 0.26);
+  --glow-rest-mid: rgba(94, 109, 125, 0.1);
+  --glow-hover: rgba(232, 226, 212, 0.32);
+  --glow-hover-mid: rgba(159, 170, 180, 0.14);
+}
+
 html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0d0d0d;
+  background: var(--color-page);
   font-family: "Germania One", system-ui;
   font-weight: 400;
   font-style: normal;
@@ -294,7 +329,7 @@ html, body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  background: radial-gradient(ellipse at 50% 38%, rgba(94, 109, 125, 0.4) 0%, rgba(28, 43, 32, 0.66) 55%, rgba(12, 16, 14, 0.9) 100%);
+  background: radial-gradient(ellipse at 50% 38%, var(--overlay-slate) 0%, var(--overlay-forest) 55%, var(--overlay-void) 100%);
   backdrop-filter: saturate(80%) contrast(108%) brightness(0.78);
   -webkit-backdrop-filter: saturate(80%) contrast(108%) brightness(0.78);
   z-index: 10;
@@ -325,11 +360,11 @@ html, body {
   width: 100%;
   height: 100%;
   background: 
-    radial-gradient(ellipse at center, transparent 35%, rgba(10, 16, 14, 0.7) 100%),
+    radial-gradient(ellipse at center, transparent 35%, var(--overlay-vignette) 100%),
     repeating-linear-gradient(
       0deg,
-      rgba(0, 0, 0, 0.25) 0px,
-      rgba(0, 0, 0, 0.25) 1px,
+      var(--overlay-scanline) 0px,
+      var(--overlay-scanline) 1px,
       transparent 1px,
       transparent 2px
     );
@@ -350,12 +385,12 @@ h1 {
   font-size: 4.5rem;
   font-weight: 400;
   text-align: center;
-  color: #e8e2d4;
+  color: var(--color-cream);
   text-shadow: 
-    0 1px 0 #6b7368,
-    0 2px 0 #3d4540,
-    0 4px 0 #1e2620,
-    0 8px 24px rgba(8, 14, 12, 0.9);
+    0 1px 0 var(--color-moss),
+    0 2px 0 var(--color-forest-mid),
+    0 4px 0 var(--color-forest-deep),
+    0 8px 24px var(--color-shadow);
   letter-spacing: 0.24em;
   line-height: 1.1;
   margin-bottom: 1.8rem;
@@ -365,9 +400,9 @@ h1 {
 h2 {
   font-size: 3rem;
   font-weight: 400;
-  color: #e4ddd0;
+  color: var(--color-cream-soft);
   text-shadow: 
-    0 2px 0 #3d4540,
+    0 2px 0 var(--color-forest-mid),
     0 4px 16px rgba(8, 14, 12, 0.88);
   letter-spacing: 0.18em;
   margin-bottom: 2rem;
@@ -376,7 +411,7 @@ h2 {
 
 .subtitle {
   font-size: 1.1rem;
-  color: #8a9188;
+  color: var(--color-moss-muted);
   text-shadow: 0 1px 2px rgba(8, 14, 12, 0.8);
   letter-spacing: 0.25em;
   margin-bottom: 2.5rem;
@@ -396,7 +431,7 @@ button {
   background: none;
   border: none;
   border-radius: 999px;
-  color: #e8e2d4;
+  color: var(--color-cream);
   text-shadow: 0 1px 2px rgba(8, 14, 12, 0.55);
   box-shadow: none;
   cursor: pointer;
@@ -416,11 +451,11 @@ button::after {
 }
 
 button::before {
-  background: radial-gradient(ellipse 58% 62% at 50% 50%, rgba(186, 196, 204, 0.26) 0%, rgba(94, 109, 125, 0.1) 38%, transparent 70%);
+  background: radial-gradient(ellipse 58% 62% at 50% 50%, var(--glow-rest) 0%, var(--glow-rest-mid) 38%, transparent 70%);
 }
 
 button::after {
-  background: radial-gradient(ellipse 62% 66% at 50% 50%, rgba(232, 226, 212, 0.32) 0%, rgba(159, 170, 180, 0.14) 40%, transparent 74%);
+  background: radial-gradient(ellipse 62% 66% at 50% 50%, var(--glow-hover) 0%, var(--glow-hover-mid) 40%, transparent 74%);
   opacity: 0;
 }
 
@@ -445,15 +480,15 @@ button:active::after {
 .hint {
   margin-top: 2rem;
   font-size: 0.85rem;
-  color: #8a9188;
-  text-shadow: 0 1px 3px rgba(8, 14, 12, 0.9);
+  color: var(--color-moss-muted);
+  text-shadow: 0 1px 3px var(--color-shadow);
   letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
 #permission-prompt p {
   font-size: 1.1rem;
-  color: #c5c1b4;
+  color: var(--color-cream-muted);
   margin-bottom: 2rem;
   text-align: center;
   padding: 0 2rem;
@@ -496,21 +531,25 @@ button:active::after {
   left: 0;
   width: 100%;
   height: 100%;
-  background: #0d0d0d;
   display: none;
   justify-content: center;
   align-items: center;
   z-index: 100;
 }
 
+#rotate-screen h1 {
+  margin-bottom: 2.4rem;
+}
+
 .rotate-content {
   text-align: center;
-  color: #e0e0e0;
+  color: var(--color-cream);
 }
 
 .rotate-content p {
   font-size: 1.3rem;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+  color: var(--color-moss-muted);
+  text-shadow: 0 2px 4px var(--color-shadow);
   letter-spacing: 0.12em;
   margin-top: 2rem;
   text-transform: uppercase;
@@ -524,9 +563,9 @@ button:active::after {
 .phone-body {
   width: 60px;
   height: 100px;
-  border: 3px solid #d4d4d4;
+  border: 3px solid var(--color-cream);
   border-radius: 8px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
+  box-shadow: 0 4px 15px var(--color-shadow);
   animation: rotatePhone 2s ease-in-out infinite;
 }
 
@@ -536,7 +575,7 @@ button:active::after {
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 2.5rem;
-  color: #ffffff;
+  color: var(--color-cream);
   animation: rotateArrow 2s ease-in-out infinite;
 }
 
@@ -555,6 +594,27 @@ button:active::after {
 @media (orientation: portrait) and (max-width: 900px) {
   #rotate-screen {
     display: flex !important;
+    padding: 1.5rem;
+  }
+
+  #rotate-screen h1 {
+    font-size: 2.4rem;
+    letter-spacing: 0.16em;
+    margin-bottom: 1.4rem;
+  }
+
+  .phone-body {
+    width: 44px;
+    height: 74px;
+  }
+
+  .rotate-arrow {
+    font-size: 1.8rem;
+  }
+
+  .rotate-content p {
+    margin-top: 1.2rem;
+    font-size: 1rem;
   }
   
   #title-screen,
@@ -575,7 +635,7 @@ button:active::after {
 #no-gyro-screen p,
 #desktop-screen p {
   font-size: 1.1rem;
-  color: #c5c1b4;
+  color: var(--color-cream-muted);
   margin-bottom: 1rem;
   text-align: center;
   padding: 0 2rem;
@@ -585,7 +645,7 @@ button:active::after {
 
 #no-gyro-screen .hint,
 #desktop-screen .hint {
-  color: #7a847c;
+  color: var(--color-moss-dim);
   text-shadow: none;
   margin-bottom: 1rem;
 }
