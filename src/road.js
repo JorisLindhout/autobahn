@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { SEGMENT_LENGTH } from './track.js';
+
+const MAX_JOINTS = 140;
 
 function createAsphaltTexture(anisotropy = 8) {
   const size = 512;
@@ -261,16 +264,110 @@ function createGrassTuftTexture() {
   return texture;
 }
 
+function createDashTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 8;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // 4 m dash / 6 m gap in a 10 m cycle
+  ctx.fillStyle = '#cfccc4';
+  ctx.fillRect(0, 0, canvas.width, Math.round(canvas.height * 0.4));
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  return texture;
+}
+
+function createStripGeometry(jointCount) {
+  const pos = new Float32Array(jointCount * 2 * 3);
+  const nrm = new Float32Array(jointCount * 2 * 3);
+  const uv = new Float32Array(jointCount * 2 * 2);
+  const indices = [];
+  for (let i = 0; i < jointCount - 1; i++) {
+    const a = i * 2;
+    indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(nrm, 3).setUsage(THREE.DynamicDrawUsage));
+  geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2).setUsage(THREE.DynamicDrawUsage));
+  geometry.setIndex(indices);
+  return geometry;
+}
+
+function writeStrip(geometry, joints, leftLat, rightLat, yOffset, vScale) {
+  const pos = geometry.attributes.position.array;
+  const nrm = geometry.attributes.normal.array;
+  const uv = geometry.attributes.uv.array;
+  const last = joints[joints.length - 1];
+
+  for (let i = 0; i < MAX_JOINTS; i++) {
+    const j = i < joints.length ? joints[i] : last;
+    const c = Math.cos(j.heading);
+    const s = Math.sin(j.heading);
+    const lx = j.x + leftLat * c;
+    const lz = j.z + leftLat * s;
+    const rx = j.x + rightLat * c;
+    const rz = j.z + rightLat * s;
+    const y = j.y + yOffset;
+
+    const sp = Math.sin(j.pitch);
+    const cp = Math.cos(j.pitch);
+    const nx = -Math.sin(j.heading) * sp;
+    const ny = cp;
+    const nz = Math.cos(j.heading) * sp;
+
+    const base = i * 6;
+    pos[base] = lx;
+    pos[base + 1] = y;
+    pos[base + 2] = lz;
+    pos[base + 3] = rx;
+    pos[base + 4] = y;
+    pos[base + 5] = rz;
+
+    nrm[base] = nx;
+    nrm[base + 1] = ny;
+    nrm[base + 2] = nz;
+    nrm[base + 3] = nx;
+    nrm[base + 4] = ny;
+    nrm[base + 5] = nz;
+
+    const v = j.s * vScale;
+    const uvBase = i * 4;
+    uv[uvBase] = 0;
+    uv[uvBase + 1] = v;
+    uv[uvBase + 2] = 1;
+    uv[uvBase + 3] = v;
+  }
+
+  geometry.attributes.position.needsUpdate = true;
+  geometry.attributes.normal.needsUpdate = true;
+  geometry.attributes.uv.needsUpdate = true;
+  geometry.computeBoundingSphere();
+}
+
 export class Road {
   constructor(scene, renderer = null) {
     this.scene = scene;
     this.renderer = renderer;
-    this.chunks = [];
-    this.chunkLength = 100;
-    this.numChunks = 7;
     this.roadWidth = 12;
     this.laneWidth = 4;
-    this.scrollOffset = 0;
+    this.shoulderWidth = 2;
+    this.grassWidth = 8;
+    this.groundWidth = 70;
+    this.group = new THREE.Group();
+    this.strips = [];
+    this.dummy = new THREE.Object3D();
+    this._basis = new THREE.Matrix4();
+    this._axisX = new THREE.Vector3();
+    this._axisY = new THREE.Vector3();
+    this._axisZ = new THREE.Vector3();
+    this.railCount = 0;
+    this.tuftCount = 0;
 
     this.initMaterials();
   }
@@ -278,12 +375,10 @@ export class Road {
   initMaterials() {
     const maxAnisotropy = this.renderer ? this.renderer.capabilities.getMaxAnisotropy() : 8;
 
-    // Road asphalt textures
     const asphaltTex = createAsphaltTexture(maxAnisotropy);
-    asphaltTex.repeat.set(3, this.chunkLength / 4);
-
+    asphaltTex.repeat.set(3, 0.25);
     const asphaltBumpTex = createAsphaltBumpTexture(maxAnisotropy);
-    asphaltBumpTex.repeat.set(3, this.chunkLength / 4);
+    asphaltBumpTex.repeat.set(3, 0.25);
 
     this.roadMaterial = new THREE.MeshStandardMaterial({
       map: asphaltTex,
@@ -294,10 +389,8 @@ export class Road {
       side: THREE.DoubleSide
     });
 
-    // Shoulder material
     const shoulderTex = createShoulderTexture(maxAnisotropy);
-    shoulderTex.repeat.set(1, this.chunkLength / 4);
-
+    shoulderTex.repeat.set(1, 0.25);
     this.shoulderMaterial = new THREE.MeshStandardMaterial({
       map: shoulderTex,
       roughness: 0.95,
@@ -305,11 +398,13 @@ export class Road {
       side: THREE.DoubleSide
     });
 
-    // Lane markings - vintage weathered motorway paint
     this.dashMaterial = new THREE.MeshStandardMaterial({
-      color: 0xcfccc4,
+      map: createDashTexture(),
+      color: 0xffffff,
       roughness: 0.82,
       metalness: 0.05,
+      transparent: true,
+      alphaTest: 0.4,
       side: THREE.DoubleSide
     });
 
@@ -320,20 +415,16 @@ export class Road {
       side: THREE.DoubleSide
     });
 
-    // Guardrails - weathered galvanized steel
     this.guardrailMaterial = new THREE.MeshStandardMaterial({
       color: 0x6e757c,
       metalness: 0.55,
       roughness: 0.5
     });
 
-    // Grass & Ground
     const grassTex = createGrassTexture(maxAnisotropy);
-    grassTex.repeat.set(2, this.chunkLength / 4);
-
+    grassTex.repeat.set(2, 0.25);
     const grassBumpTex = createGrassBumpTexture(maxAnisotropy);
-    grassBumpTex.repeat.set(2, this.chunkLength / 4);
-
+    grassBumpTex.repeat.set(2, 0.25);
     this.grassMaterial = new THREE.MeshStandardMaterial({
       map: grassTex,
       bumpMap: grassBumpTex,
@@ -344,11 +435,9 @@ export class Road {
     });
 
     const groundTex = createForestFloorTexture(maxAnisotropy);
-    groundTex.repeat.set(16, this.chunkLength / 4);
-
+    groundTex.repeat.set(8, 0.08);
     const groundBumpTex = createGrassBumpTexture(maxAnisotropy);
-    groundBumpTex.repeat.set(16, this.chunkLength / 4);
-
+    groundBumpTex.repeat.set(8, 0.08);
     this.groundMaterial = new THREE.MeshStandardMaterial({
       map: groundTex,
       bumpMap: groundBumpTex,
@@ -358,7 +447,6 @@ export class Road {
       side: THREE.DoubleSide
     });
 
-    // 3D Roadside Grass Tufts
     const tuftTex = createGrassTuftTexture();
     this.tuftMaterial = new THREE.MeshStandardMaterial({
       map: tuftTex,
@@ -370,176 +458,130 @@ export class Road {
     });
   }
 
+  addStrip(leftLat, rightLat, yOffset, vScale, material) {
+    const geometry = createStripGeometry(MAX_JOINTS);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.frustumCulled = false;
+    this.group.add(mesh);
+    this.strips.push({ geometry, leftLat, rightLat, yOffset, vScale });
+    return mesh;
+  }
+
   create() {
-    for (let i = 0; i < this.numChunks; i++) {
-      const chunk = this.createChunk();
-      chunk.position.z = -i * this.chunkLength;
-      this.chunks.push(chunk);
-      this.scene.add(chunk);
+    const half = this.roadWidth / 2;
+    const sh = this.shoulderWidth;
+    const grass = this.grassWidth;
+    const ground = this.groundWidth;
+
+    this.addStrip(-half, half, 0, 1, this.roadMaterial);
+    this.addStrip(-half - sh, -half, 0.005, 1, this.shoulderMaterial);
+    this.addStrip(half, half + sh, 0.005, 1, this.shoulderMaterial);
+    this.addStrip(-half + 0.0, -half + 0.2, 0.02, 1, this.edgeLineMaterial);
+    this.addStrip(half - 0.2, half, 0.02, 1, this.edgeLineMaterial);
+    const dashHalf = 0.08;
+    this.addStrip(-this.laneWidth / 2 - dashHalf, -this.laneWidth / 2 + dashHalf, 0.03, 0.1, this.dashMaterial);
+    this.addStrip(this.laneWidth / 2 - dashHalf, this.laneWidth / 2 + dashHalf, 0.03, 0.1, this.dashMaterial);
+    this.addStrip(-half - sh - grass, -half - sh, 0.01, 1, this.grassMaterial);
+    this.addStrip(half + sh, half + sh + grass, 0.01, 1, this.grassMaterial);
+    this.addStrip(-half - sh - grass - ground, -half - sh - grass, -0.01, 1, this.groundMaterial);
+    this.addStrip(half + sh + grass, half + sh + grass + ground, -0.01, 1, this.groundMaterial);
+
+    this.railCount = (MAX_JOINTS - 1) * 2;
+    const railGeo = new THREE.BoxGeometry(0.15, 0.4, SEGMENT_LENGTH + 0.2);
+    this.rails = new THREE.InstancedMesh(railGeo, this.guardrailMaterial, this.railCount);
+    this.rails.frustumCulled = false;
+    this.rails.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.group.add(this.rails);
+
+    this.tuftCount = 80;
+    const tuftGeo = new THREE.PlaneGeometry(0.75, 0.6);
+    tuftGeo.translate(0, 0.3, 0);
+    this.tufts = new THREE.InstancedMesh(tuftGeo, this.tuftMaterial, this.tuftCount);
+    this.tufts.frustumCulled = false;
+    this.tufts.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.group.add(this.tufts);
+
+    this.scene.add(this.group);
+  }
+
+  poseOnTrack(track, relZ, lateralX, yOffset, extraYaw = 0) {
+    const p = track.sample(relZ, lateralX);
+    const heading = p.heading + extraYaw;
+    const ch = Math.cos(heading);
+    const sh = Math.sin(heading);
+    const cp = Math.cos(p.pitch);
+    const sp = Math.sin(p.pitch);
+
+    const fx = sh * cp;
+    const fy = sp;
+    const fz = -ch * cp;
+    this._axisX.set(ch, 0, sh);
+    this._axisZ.set(fx, fy, fz);
+    this._axisY.crossVectors(this._axisZ, this._axisX).normalize();
+    this._basis.makeBasis(this._axisX, this._axisY, this._axisZ);
+
+    this.dummy.position.set(p.x, p.y + yOffset, p.z);
+    this.dummy.quaternion.setFromRotationMatrix(this._basis);
+    this.dummy.scale.set(1, 1, 1);
+    this.dummy.updateMatrix();
+  }
+
+  hideInstance(mesh, index) {
+    this.dummy.scale.set(0, 0, 0);
+    this.dummy.position.set(0, -10, 0);
+    this.dummy.updateMatrix();
+    mesh.setMatrixAt(index, this.dummy.matrix);
+  }
+
+  sync(track) {
+    if (!track || track.joints.length < 2) return;
+
+    const joints = track.joints;
+    for (const strip of this.strips) {
+      writeStrip(strip.geometry, joints, strip.leftLat, strip.rightLat, strip.yOffset, strip.vScale);
     }
-  }
 
-  createChunk() {
-    const group = new THREE.Group();
+    const lastS = joints[joints.length - 1].s;
 
-    const roadGeometry = new THREE.PlaneGeometry(this.roadWidth, this.chunkLength);
-    const road = new THREE.Mesh(roadGeometry, this.roadMaterial);
-    road.rotation.x = -Math.PI / 2;
-    road.position.y = 0;
-    road.position.z = -this.chunkLength / 2;
-    group.add(road);
-
-    const shoulderWidth = 2;
-    const shoulderGeometry = new THREE.PlaneGeometry(shoulderWidth, this.chunkLength);
-
-    const leftShoulder = new THREE.Mesh(shoulderGeometry, this.shoulderMaterial);
-    leftShoulder.rotation.x = -Math.PI / 2;
-    leftShoulder.position.set(-this.roadWidth / 2 - shoulderWidth / 2, 0.005, -this.chunkLength / 2);
-    group.add(leftShoulder);
-
-    const rightShoulder = new THREE.Mesh(shoulderGeometry, this.shoulderMaterial);
-    rightShoulder.rotation.x = -Math.PI / 2;
-    rightShoulder.position.set(this.roadWidth / 2 + shoulderWidth / 2, 0.005, -this.chunkLength / 2);
-    group.add(rightShoulder);
-
-    this.addLaneMarkings(group);
-    this.addRoadEdges(group);
-    this.addGround(group);
-    this.addGrassTufts(group);
-
-    return group;
-  }
-
-  addLaneMarkings(group) {
-    const dashLength = 4;
-    const dashGap = 6;
-    const cycle = dashLength + dashGap; // 10m cycle divides 100m chunk length evenly
-    const dashWidth = 0.15;
-    const numDashes = Math.round(this.chunkLength / cycle);
-
-    const dashGeometry = new THREE.PlaneGeometry(dashWidth, dashLength);
-
-    for (let lane = 0; lane < 2; lane++) {
-      const xPos = (lane - 0.5) * this.laneWidth;
-
-      for (let i = 0; i < numDashes; i++) {
-        const dash = new THREE.Mesh(dashGeometry, this.dashMaterial);
-        dash.rotation.x = -Math.PI / 2;
-        dash.position.set(
-          xPos,
-          0.02,
-          -i * cycle - dashLength / 2
-        );
-        group.add(dash);
+    const railLat = this.roadWidth / 2 + 1.5;
+    let railIndex = 0;
+    const segCount = Math.min(joints.length - 1, MAX_JOINTS - 1);
+    for (let i = 0; i < segCount; i++) {
+      const a = joints[i];
+      const midS = a.s + SEGMENT_LENGTH / 2;
+      const relZ = track.s - midS;
+      for (const lat of [-railLat, railLat]) {
+        this.poseOnTrack(track, relZ, lat, 0.5);
+        this.rails.setMatrixAt(railIndex, this.dummy.matrix);
+        railIndex++;
       }
     }
-
-    const edgeLineGeometry = new THREE.PlaneGeometry(0.2, this.chunkLength);
-
-    const leftEdge = new THREE.Mesh(edgeLineGeometry, this.edgeLineMaterial);
-    leftEdge.rotation.x = -Math.PI / 2;
-    leftEdge.position.set(-this.roadWidth / 2 + 0.1, 0.02, -this.chunkLength / 2);
-    group.add(leftEdge);
-
-    const rightEdge = new THREE.Mesh(edgeLineGeometry, this.edgeLineMaterial);
-    rightEdge.rotation.x = -Math.PI / 2;
-    rightEdge.position.set(this.roadWidth / 2 - 0.1, 0.02, -this.chunkLength / 2);
-    group.add(rightEdge);
-  }
-
-  addRoadEdges(group) {
-    const barrierHeight = 0.4;
-    const barrierWidth = 0.15;
-    const barrierGeometry = new THREE.BoxGeometry(barrierWidth, barrierHeight, this.chunkLength);
-
-    const leftBarrier = new THREE.Mesh(barrierGeometry, this.guardrailMaterial);
-    leftBarrier.position.set(-this.roadWidth / 2 - 1.5, barrierHeight / 2 + 0.3, -this.chunkLength / 2);
-    group.add(leftBarrier);
-
-    const rightBarrier = new THREE.Mesh(barrierGeometry, this.guardrailMaterial);
-    rightBarrier.position.set(this.roadWidth / 2 + 1.5, barrierHeight / 2 + 0.3, -this.chunkLength / 2);
-    group.add(rightBarrier);
-
-    const grassWidth = 8;
-    const grassGeometry = new THREE.PlaneGeometry(grassWidth, this.chunkLength);
-
-    const leftGrass = new THREE.Mesh(grassGeometry, this.grassMaterial);
-    leftGrass.rotation.x = -Math.PI / 2;
-    leftGrass.position.set(-this.roadWidth / 2 - 2 - grassWidth / 2, 0.01, -this.chunkLength / 2);
-    group.add(leftGrass);
-
-    const rightGrass = new THREE.Mesh(grassGeometry, this.grassMaterial);
-    rightGrass.rotation.x = -Math.PI / 2;
-    rightGrass.position.set(this.roadWidth / 2 + 2 + grassWidth / 2, 0.01, -this.chunkLength / 2);
-    group.add(rightGrass);
-  }
-
-  addGrassTufts(group) {
-    const tuftGeo1 = new THREE.PlaneGeometry(0.75, 0.6);
-    tuftGeo1.translate(0, 0.3, 0);
-    const tuftGeo2 = new THREE.PlaneGeometry(0.75, 0.6);
-    tuftGeo2.rotateY(Math.PI / 2);
-    tuftGeo2.translate(0, 0.3, 0);
-
-    const numTufts = 16;
-    for (let i = 0; i < numTufts; i++) {
-      const z = -Math.random() * this.chunkLength;
-
-      // Left roadside tuft (right beside guardrail)
-      const leftGroup = new THREE.Group();
-      leftGroup.add(new THREE.Mesh(tuftGeo1, this.tuftMaterial));
-      leftGroup.add(new THREE.Mesh(tuftGeo2, this.tuftMaterial));
-      const leftScale = 0.55 + Math.random() * 0.45;
-      leftGroup.scale.set(leftScale, leftScale, leftScale);
-      leftGroup.rotation.y = Math.random() * Math.PI;
-      leftGroup.position.set(-this.roadWidth / 2 - 2.1 - Math.random() * 3.5, 0.01, z);
-      group.add(leftGroup);
-
-      // Right roadside tuft (right beside guardrail)
-      const rightGroup = new THREE.Group();
-      rightGroup.add(new THREE.Mesh(tuftGeo1, this.tuftMaterial));
-      rightGroup.add(new THREE.Mesh(tuftGeo2, this.tuftMaterial));
-      const rightScale = 0.55 + Math.random() * 0.45;
-      rightGroup.scale.set(rightScale, rightScale, rightScale);
-      rightGroup.rotation.y = Math.random() * Math.PI;
-      rightGroup.position.set(this.roadWidth / 2 + 2.1 + Math.random() * 3.5, 0.01, z);
-      group.add(rightGroup);
+    while (railIndex < this.railCount) {
+      this.hideInstance(this.rails, railIndex++);
     }
-  }
+    this.rails.instanceMatrix.needsUpdate = true;
 
-  addGround(group) {
-    const groundWidth = 200;
-    const groundGeometry = new THREE.PlaneGeometry(groundWidth, this.chunkLength);
-
-    const leftGround = new THREE.Mesh(groundGeometry, this.groundMaterial);
-    leftGround.rotation.x = -Math.PI / 2;
-    leftGround.position.set(-groundWidth / 2 - this.roadWidth / 2 - 12, -0.01, -this.chunkLength / 2);
-    group.add(leftGround);
-
-    const rightGround = new THREE.Mesh(groundGeometry, this.groundMaterial);
-    rightGround.rotation.x = -Math.PI / 2;
-    rightGround.position.set(groundWidth / 2 + this.roadWidth / 2 + 12, -0.01, -this.chunkLength / 2);
-    group.add(rightGround);
-  }
-
-  reset() {
-    this.scrollOffset = 0;
-    for (let i = 0; i < this.chunks.length; i++) {
-      this.chunks[i].position.z = -i * this.chunkLength;
-    }
-  }
-
-  update(deltaTime, speed) {
-    const movement = speed * deltaTime;
-    this.scrollOffset += movement;
-    const totalLength = this.numChunks * this.chunkLength;
-
-    for (const chunk of this.chunks) {
-      chunk.position.z += movement;
-
-      if (chunk.position.z > this.chunkLength) {
-        chunk.position.z -= totalLength;
+    for (let i = 0; i < this.tuftCount; i++) {
+      const along = (i >> 1) * 8 + 3;
+      const relZ = track.s - track.repeatS(along, 320, 16);
+      if (relZ > 20 || -relZ > lastS - track.s + 8) {
+        this.hideInstance(this.tufts, i);
+        continue;
       }
+      const side = i % 2 === 0 ? -1 : 1;
+      const lat = side * (this.roadWidth / 2 + 2.1 + (i % 5) * 0.7);
+      this.poseOnTrack(track, relZ, lat, 0.01, (i * 1.7) % Math.PI);
+      const scale = 0.55 + (i % 7) * 0.06;
+      this.dummy.scale.set(scale, scale, scale);
+      this.dummy.updateMatrix();
+      this.tufts.setMatrixAt(i, this.dummy.matrix);
     }
+    this.tufts.instanceMatrix.needsUpdate = true;
+  }
+
+  reset() {}
+
+  update(deltaTime, speed, track) {
+    if (track) this.sync(track);
   }
 }

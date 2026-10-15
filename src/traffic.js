@@ -71,6 +71,11 @@ export class Traffic {
 
     this.carScale = 1.0;
     this.carRotationY = Math.PI;
+    this._basis = new THREE.Matrix4();
+    this._axisX = new THREE.Vector3();
+    this._axisY = new THREE.Vector3();
+    this._axisZ = new THREE.Vector3();
+    this._steerQ = new THREE.Quaternion();
 
     // Traffic AI parameters
     this.safeFollowingDistance = 8.0;    // Minimum gap behind lead car (meters)
@@ -193,7 +198,10 @@ export class Traffic {
       laneCooldown: 0,
       speed: 0,
       baseSpeed: 0,
-      active: false
+      active: false,
+      relZ: 0,
+      lateralX: 0,
+      steerYaw: 0
     };
 
     return car;
@@ -248,6 +256,9 @@ export class Traffic {
 
   setupCarState(car, laneIndex, z, speed = null) {
     const lane = this.lanePositions[laneIndex];
+    car.userData.relZ = z;
+    car.userData.lateralX = lane;
+    car.userData.steerYaw = 0;
     car.position.set(lane, 0, z);
     car.rotation.y = this.carRotationY;
 
@@ -304,8 +315,8 @@ export class Traffic {
     const recentCars = this.cars.filter(
       car =>
         car.userData.active &&
-        car.position.z < this.spawnDistance + 30 &&
-        car.position.z > this.spawnDistance - 20
+        car.userData.relZ < this.spawnDistance + 30 &&
+        car.userData.relZ > this.spawnDistance - 20
     );
 
     const occupiedLanes = new Set(recentCars.map(car => car.userData.lane));
@@ -326,7 +337,7 @@ export class Traffic {
 
     // If 2 lanes are occupied, check if the occupied cars are already clustered side-by-side
     if (available.length === 1 && recentCars.length >= 2) {
-      const zPositions = recentCars.map(c => c.position.z);
+      const zPositions = recentCars.map(c => c.userData.relZ);
       const minZ = Math.min(...zPositions);
       const maxZ = Math.max(...zPositions);
       // If the existing cars are closely aligned in Z, avoid dropping the 3rd car right next to them
@@ -362,7 +373,7 @@ export class Traffic {
     if (car.userData.isChangingLane || targetLane === car.userData.lane) return;
 
     car.userData.isChangingLane = true;
-    car.userData.fromX = car.position.x;
+    car.userData.fromX = car.userData.lateralX;
     car.userData.toX = this.lanePositions[targetLane];
     car.userData.targetLane = targetLane;
     car.userData.laneProgress = 0;
@@ -376,12 +387,12 @@ export class Traffic {
       const inTargetLane =
         other.userData.lane === targetLane ||
         other.userData.targetLane === targetLane ||
-        Math.abs(other.position.x - this.lanePositions[targetLane]) < 2.0;
+        Math.abs(other.userData.lateralX - this.lanePositions[targetLane]) < 2.0;
 
       if (!inTargetLane) continue;
 
       // deltaZ > 0: other car is ahead; deltaZ <= 0: other car is behind
-      const deltaZ = car.position.z - other.position.z;
+      const deltaZ = car.userData.relZ - other.userData.relZ;
 
       if (deltaZ > 0) {
         // Other car is ahead in target lane
@@ -414,12 +425,12 @@ export class Traffic {
       const samePath =
         other.userData.lane === car.userData.lane ||
         other.userData.targetLane === car.userData.targetLane ||
-        Math.abs(other.position.x - car.position.x) < 2.2;
+        Math.abs(other.userData.lateralX - car.userData.lateralX) < 2.2;
 
       if (!samePath) continue;
 
       // In this coordinate system, vehicles ahead have more negative Z
-      const distanceAhead = car.position.z - other.position.z;
+      const distanceAhead = car.userData.relZ - other.userData.relZ;
 
       if (distanceAhead > 0 && distanceAhead < minDistance) {
         minDistance = distanceAhead;
@@ -434,7 +445,7 @@ export class Traffic {
     // Detect if cars across lanes 0, 1, and 2 form an impassable side-by-side wall
     // within the visible / approaching horizon (Z between -110m and -10m)
     const activeRoadCars = this.cars.filter(
-      c => c.userData.active && c.position.z < -10 && c.position.z > -110
+      c => c.userData.active && c.userData.relZ < -10 && c.userData.relZ > -110
     );
 
     const lane0Cars = activeRoadCars.filter(c => (c.userData.lane === 0 || c.userData.targetLane === 0));
@@ -443,11 +454,11 @@ export class Traffic {
 
     for (const c0 of lane0Cars) {
       for (const c1 of lane1Cars) {
-        if (Math.abs(c0.position.z - c1.position.z) > 10.0) continue;
+        if (Math.abs(c0.userData.relZ - c1.userData.relZ) > 10.0) continue;
 
         for (const c2 of lane2Cars) {
-          const gap02 = Math.abs(c0.position.z - c2.position.z);
-          const gap12 = Math.abs(c1.position.z - c2.position.z);
+          const gap02 = Math.abs(c0.userData.relZ - c2.userData.relZ);
+          const gap12 = Math.abs(c1.userData.relZ - c2.userData.relZ);
 
           // All 3 cars are within a tight longitudinal cluster (< 11m), completely blocking all lanes
           if (gap02 < 11.0 && gap12 < 10.0) {
@@ -464,7 +475,7 @@ export class Traffic {
     }
   }
 
-  reset() {
+  reset(track = null) {
     for (const car of this.cars) {
       car.userData.active = false;
       car.userData.isChangingLane = false;
@@ -476,9 +487,35 @@ export class Traffic {
     this.nextSpawnTime = 1;
 
     this.spawnInitialCars();
+    this.poseCars(track);
   }
 
-  update(deltaTime, playerSpeed, gameTime) {
+  poseCars(track) {
+    if (!track) return;
+    for (const car of this.cars) {
+      if (!car.userData.active) continue;
+      const p = track.sample(car.userData.relZ, car.userData.lateralX);
+      const heading = p.heading;
+      const ch = Math.cos(heading);
+      const sh = Math.sin(heading);
+      const cp = Math.cos(p.pitch);
+      const sp = Math.sin(p.pitch);
+      // Same 180° yaw as carRotationY, then road heading/pitch. Y = Z × X (right-handed).
+      this._axisX.set(-ch, 0, -sh);
+      this._axisZ.set(sh * cp, sp, -ch * cp);
+      this._axisY.crossVectors(this._axisZ, this._axisX).normalize();
+      this._basis.makeBasis(this._axisX, this._axisY, this._axisZ);
+      car.position.set(p.x, p.y, p.z);
+      car.quaternion.setFromRotationMatrix(this._basis);
+      const steer = car.userData.steerYaw || 0;
+      if (steer !== 0) {
+        this._steerQ.setFromAxisAngle(this._axisY, steer);
+        car.quaternion.premultiply(this._steerQ);
+      }
+    }
+  }
+
+  update(deltaTime, playerSpeed, gameTime, track = null) {
     const difficultyFactor = Math.min(gameTime / 120, 1);
     const spawnInterval =
       this.maxSpawnInterval -
@@ -504,18 +541,17 @@ export class Traffic {
         const t = Math.min(car.userData.laneProgress, 1.0);
         // Smooth cubic ease-in-out curve
         const ease = t * t * (3 - 2 * t);
-        car.position.x = THREE.MathUtils.lerp(car.userData.fromX, car.userData.toX, ease);
+        car.userData.lateralX = THREE.MathUtils.lerp(car.userData.fromX, car.userData.toX, ease);
 
         // Natural slight yaw turn during lane change
         const deltaX = car.userData.toX - car.userData.fromX;
-        const steeringYaw = Math.sin(t * Math.PI) * (deltaX > 0 ? -0.07 : 0.07);
-        car.rotation.y = this.carRotationY + steeringYaw;
+        car.userData.steerYaw = Math.sin(t * Math.PI) * (deltaX > 0 ? -0.07 : 0.07);
 
         if (t >= 1.0) {
           car.userData.isChangingLane = false;
           car.userData.lane = car.userData.targetLane;
-          car.position.x = this.lanePositions[car.userData.lane];
-          car.rotation.y = this.carRotationY;
+          car.userData.lateralX = this.lanePositions[car.userData.lane];
+          car.userData.steerYaw = 0;
           car.userData.laneCooldown = 1.5 + Math.random() * 2.0;
         }
       }
@@ -593,22 +629,24 @@ export class Traffic {
     for (let i = this.cars.length - 1; i >= 0; i--) {
       const car = this.cars[i];
       const relativeSpeed = playerSpeed - car.userData.speed;
-      car.position.z += relativeSpeed * deltaTime;
+      car.userData.relZ += relativeSpeed * deltaTime;
 
       // Hard anti-clipping safeguard
       const { leadCar, distance } = this.findLeadCar(car);
       if (leadCar && distance < 4.2) {
-        car.position.z = leadCar.position.z + 4.2;
+        car.userData.relZ = leadCar.userData.relZ + 4.2;
         car.userData.speed = Math.min(car.userData.speed, leadCar.userData.speed);
       }
 
-      if (car.position.z > this.despawnDistance) {
+      if (car.userData.relZ > this.despawnDistance) {
         car.userData.active = false;
         car.userData.isChangingLane = false;
         car.visible = false;
         this.cars.splice(i, 1);
       }
     }
+
+    this.poseCars(track);
   }
 
   getCars() {

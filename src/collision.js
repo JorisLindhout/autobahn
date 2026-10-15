@@ -41,8 +41,8 @@ export class Collision {
     for (const car of cars) {
       if (!car.userData.active) continue;
       
-      const carX = car.position.x;
-      const carZ = car.position.z;
+      const carX = car.userData.lateralX;
+      const carZ = car.userData.relZ;
 
       // Ignore cars that have already passed behind the player's view
       if (carZ > 0) continue;

@@ -3,29 +3,33 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 let windTurbines = [];
 let sceneryGroup = null;
-let loopGroup = null;
+let horizonGroup = null;
+let forestGroup = null;
 let sceneryPromise = null;
-let scrollOffset = 0;
-const SCENERY_LOOP_LENGTH = 600;
-const LOOP_SEGMENTS = 2;
-const PARALLAX_FACTOR = 0.15;
+let treePool = [];
+let backdropCards = [];
+const HORIZON_PARALLAX = 0.35;
 
-export function updateScenery(deltaTime, speed = 0) {
+export function updateScenery(deltaTime, speed = 0, track = null, sky = null) {
   for (const turbine of windTurbines) {
     if (turbine.userData.bladeGroup) {
       turbine.userData.bladeGroup.rotation.z += turbine.userData.bladeGroup.userData.rotationSpeed * deltaTime;
     }
   }
-  
-  if (loopGroup && speed > 0) {
-    scrollOffset += speed * deltaTime * PARALLAX_FACTOR;
-    
-    if (scrollOffset > SCENERY_LOOP_LENGTH) {
-      scrollOffset -= SCENERY_LOOP_LENGTH;
-    }
-    
-    loopGroup.position.z = scrollOffset;
+
+  if (!track) return;
+
+  if (sky) {
+    sky.rotation.y = 0;
+    sky.position.y = track.playerY;
   }
+
+  if (horizonGroup) {
+    horizonGroup.rotation.y = 0;
+    horizonGroup.position.y = track.playerY * HORIZON_PARALLAX;
+  }
+
+  poseRibbonScenery(track);
 }
 
 /* Realistic high-contrast 80s overcast cloud sky texture generator */
@@ -186,18 +190,20 @@ export function createSun() {
 
 export function createScenery() {
   sceneryGroup = new THREE.Group();
-  loopGroup = new THREE.Group();
-  sceneryGroup.add(loopGroup);
-  scrollOffset = 0;
-  
+  horizonGroup = new THREE.Group();
+  forestGroup = new THREE.Group();
+  sceneryGroup.add(horizonGroup);
+  sceneryGroup.add(forestGroup);
+
   windTurbines = [];
-  addRollingHills(loopGroup);
-  addForestBackdrops(loopGroup);
-  sceneryPromise = addTrees(loopGroup);
-  addWindTurbines(loopGroup, windTurbines);
-  addGridFloor(loopGroup);
-  addDistantMountains(sceneryGroup);
-  
+  treePool = [];
+  backdropCards = [];
+  addRollingHills(horizonGroup);
+  addDistantMountains(horizonGroup);
+  addWindTurbines(horizonGroup, windTurbines);
+  addForestBackdrops(forestGroup);
+  sceneryPromise = addTrees(forestGroup);
+
   return sceneryGroup;
 }
 
@@ -206,9 +212,9 @@ export function getSceneryPromise() {
 }
 
 export function resetScenery() {
-  scrollOffset = 0;
-  if (loopGroup) {
-    loopGroup.position.z = 0;
+  if (horizonGroup) {
+    horizonGroup.rotation.set(0, 0, 0);
+    horizonGroup.position.set(0, 0, 0);
   }
 }
 
@@ -285,6 +291,7 @@ function createForestBackdropTexture() {
 
 function addForestBackdrops(group) {
   const backdropTex = createForestBackdropTexture();
+  backdropTex.repeat.set(1.2, 1);
 
   const backdropMaterial = new THREE.MeshBasicMaterial({
     map: backdropTex,
@@ -294,35 +301,28 @@ function addForestBackdrops(group) {
     fog: true
   });
 
-  // Long enough that after a wrap there is still forest past the fog horizon
-  const wallLength = SCENERY_LOOP_LENGTH * (LOOP_SEGMENTS + 1);
-  backdropTex.repeat.set(5 * (LOOP_SEGMENTS + 1), 1);
+  const cardWidth = 28;
   const wallHeight = 28;
-  const wallGeometry = new THREE.PlaneGeometry(wallLength, wallHeight);
+  const wallGeometry = new THREE.PlaneGeometry(cardWidth, wallHeight);
+  backdropCards = [];
 
-  // Left forest backdrop panels (Layer 1 close backdrop, Layer 2 far backdrop)
-  const leftWall1 = new THREE.Mesh(wallGeometry, backdropMaterial);
-  leftWall1.rotation.y = Math.PI / 2;
-  leftWall1.position.set(-48, wallHeight / 2 - 0.5, -wallLength / 2);
-  group.add(leftWall1);
-
-  const leftWall2 = new THREE.Mesh(wallGeometry, backdropMaterial);
-  leftWall2.rotation.y = Math.PI / 2;
-  leftWall2.scale.set(1, 1.4, 1);
-  leftWall2.position.set(-75, (wallHeight * 1.4) / 2 - 0.5, -wallLength / 2);
-  group.add(leftWall2);
-
-  // Right forest backdrop panels
-  const rightWall1 = new THREE.Mesh(wallGeometry, backdropMaterial);
-  rightWall1.rotation.y = -Math.PI / 2;
-  rightWall1.position.set(48, wallHeight / 2 - 0.5, -wallLength / 2);
-  group.add(rightWall1);
-
-  const rightWall2 = new THREE.Mesh(wallGeometry, backdropMaterial);
-  rightWall2.rotation.y = -Math.PI / 2;
-  rightWall2.scale.set(1, 1.4, 1);
-  rightWall2.position.set(75, (wallHeight * 1.4) / 2 - 0.5, -wallLength / 2);
-  group.add(rightWall2);
+  for (let along = 20; along < 380; along += 24) {
+    for (const side of [-1, 1]) {
+      for (const layer of [
+        { lateral: 48, heightScale: 1 },
+        { lateral: 72, heightScale: 1.35 }
+      ]) {
+        const card = new THREE.Mesh(wallGeometry, backdropMaterial);
+        card.userData.along = along + (layer.lateral > 50 ? 8 : 0);
+        card.userData.lateral = side * layer.lateral;
+        card.userData.heightScale = layer.heightScale;
+        card.scale.y = layer.heightScale;
+        card.visible = false;
+        group.add(card);
+        backdropCards.push(card);
+      }
+    }
+  }
 }
 
 function addRollingHills(group) {
@@ -359,13 +359,11 @@ function addRollingHills(group) {
   ];
   
   for (const pos of ridgePositions) {
-    for (let copy = 0; copy < LOOP_SEGMENTS; copy++) {
-      const geometry = new THREE.SphereGeometry(pos.radius, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
-      const hill = new THREE.Mesh(geometry, pos.mat);
-      hill.scale.y = pos.height / pos.radius;
-      hill.position.set(pos.x, 0, pos.z - copy * SCENERY_LOOP_LENGTH);
-      group.add(hill);
-    }
+    const geometry = new THREE.SphereGeometry(pos.radius, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2);
+    const hill = new THREE.Mesh(geometry, pos.mat);
+    hill.scale.y = pos.height / pos.radius;
+    hill.position.set(pos.x, 0, pos.z);
+    group.add(hill);
   }
 }
 
@@ -392,27 +390,58 @@ function addDistantMountains(group) {
   }
 }
 
-async function addTrees(group) {
-  const treeContainer = new THREE.Group();
-  group.add(treeContainer);
+function poseRibbonScenery(track) {
+  for (const tree of treePool) {
+    const slot = tree.userData.slot;
+    if (!slot) {
+      tree.visible = false;
+      continue;
+    }
+    const worldS = track.repeatS(slot.along);
+    const relZ = track.s - worldS;
+    if (relZ > 20 || -relZ > track.aheadDistance) {
+      tree.visible = false;
+      continue;
+    }
+    const p = track.sample(relZ, slot.lateral);
+    tree.visible = true;
+    tree.position.set(p.x, p.y, p.z);
+    tree.rotation.y = slot.yaw + p.heading;
+  }
 
+  for (const card of backdropCards) {
+    const worldS = track.repeatS(card.userData.along);
+    const relZ = track.s - worldS;
+    if (relZ > 20 || -relZ > track.aheadDistance) {
+      card.visible = false;
+      continue;
+    }
+    const p = track.sample(relZ, card.userData.lateral);
+    card.visible = true;
+    const height = 28 * (card.userData.heightScale || 1);
+    card.position.set(p.x, p.y + height / 2 - 0.5, p.z);
+    const face = card.userData.lateral > 0 ? -Math.PI / 2 : Math.PI / 2;
+    card.rotation.set(0, p.heading + face, 0);
+  }
+}
+
+async function addTrees(group) {
+  treePool = [];
   const loader = new GLTFLoader();
   try {
     const gltf = await loader.loadAsync('/models/fir_tree.glb');
     const baseTree = gltf.scene;
 
-    // Center base at ground level Y = 0
     const box = new THREE.Box3().setFromObject(baseTree);
     baseTree.position.y = -box.min.y;
 
-    // Desaturated, deep German Black Forest pine & spruce shades
     const foliageColors = [
-      0x16241b, // deep charcoal evergreen
-      0x1c2b20, // cold forest pine
-      0x142018, // dark spruce
-      0x223026, // slate pine
-      0x1a241d, // overcast evergreen
-      0x111c15  // shadowy deep pine
+      0x16241b,
+      0x1c2b20,
+      0x142018,
+      0x223026,
+      0x1a241d,
+      0x111c15
     ];
 
     const foliageMaterials = foliageColors.map(color => new THREE.MeshStandardMaterial({
@@ -427,16 +456,15 @@ async function addTrees(group) {
       metalness: 0.0
     });
 
-    const createVariedTree = (baseScaleMin, baseScaleMax, posX, posZ, isUndergrowth = false) => {
+    const createVariedTree = (baseScaleMin, baseScaleMax, isUndergrowth = false) => {
       const tree = baseTree.clone(true);
 
       const overallScale = baseScaleMin + Math.random() * (baseScaleMax - baseScaleMin);
-      // Undergrowth is bushier and squashed lower to block low ground sightlines
-      const widthFactor = isUndergrowth 
-        ? 1.1 + Math.random() * 0.5 
+      const widthFactor = isUndergrowth
+        ? 1.1 + Math.random() * 0.5
         : 0.8 + Math.random() * 0.45;
-      const heightFactor = isUndergrowth 
-        ? 0.65 + Math.random() * 0.35 
+      const heightFactor = isUndergrowth
+        ? 0.65 + Math.random() * 0.35
         : 0.85 + Math.random() * 0.55;
 
       tree.scale.set(
@@ -445,12 +473,9 @@ async function addTrees(group) {
         overallScale * widthFactor
       );
 
-      // Random heading + subtle natural tilt
-      tree.rotation.y = Math.random() * Math.PI * 2;
       tree.rotation.x = (Math.random() - 0.5) * 0.08;
       tree.rotation.z = (Math.random() - 0.5) * 0.08;
 
-      // Randomize foliage material tint on this instance
       const mat = foliageMaterials[Math.floor(Math.random() * foliageMaterials.length)];
       tree.traverse((child) => {
         if (child.isMesh) {
@@ -464,75 +489,30 @@ async function addTrees(group) {
         }
       });
 
-      tree.position.set(posX, 0, posZ);
       return tree;
     };
 
-    // Generate deep, dense multi-layered forest across tiled loop segments so the woods never run out
-    const forestLength = SCENERY_LOOP_LENGTH * LOOP_SEGMENTS;
-    for (let z = 0; z > -forestLength; z -= 8) {
-      // LEFT SIDE FOREST LAYERS
-      // Layer 0: Eye-level undergrowth & bushy saplings (blocks ground gaps between trunks)
-      if (Math.random() > 0.1) {
-        const x = -13 - Math.random() * 6;
-        const jitterZ = z + (Math.random() - 0.5) * 7;
-        treeContainer.add(createVariedTree(0.8, 1.7, x, jitterZ, true));
-      }
-      // Layer 1: Roadside mature fir trees
-      if (Math.random() > 0.15) {
-        const x = -16 - Math.random() * 6;
-        const jitterZ = z + (Math.random() - 0.5) * 8;
-        treeContainer.add(createVariedTree(1.8, 3.2, x, jitterZ));
-      }
-      // Layer 2: Mid forest canopy
-      if (Math.random() > 0.2) {
-        const x = -25 - Math.random() * 9;
-        const jitterZ = z + (Math.random() - 0.5) * 10;
-        treeContainer.add(createVariedTree(2.6, 4.2, x, jitterZ));
-      }
-      // Layer 3: Deep forest canopy
-      if (Math.random() > 0.25) {
-        const x = -38 - Math.random() * 12;
-        const jitterZ = z + (Math.random() - 0.5) * 12;
-        treeContainer.add(createVariedTree(3.4, 5.2, x, jitterZ));
-      }
-      // Layer 4: Distant forest hillside
-      if (Math.random() > 0.35) {
-        const x = -54 - Math.random() * 16;
-        const jitterZ = z + (Math.random() - 0.5) * 14;
-        treeContainer.add(createVariedTree(4.2, 6.2, x, jitterZ));
-      }
+    const layers = [
+      { chance: 0.9, min: 0.8, max: 1.7, lateral: 13, spread: 6, under: true },
+      { chance: 0.85, min: 1.8, max: 3.2, lateral: 16, spread: 6, under: false },
+      { chance: 0.7, min: 2.6, max: 4.2, lateral: 26, spread: 9, under: false },
+      { chance: 0.5, min: 3.4, max: 5.2, lateral: 40, spread: 12, under: false }
+    ];
 
-      // RIGHT SIDE FOREST LAYERS
-      // Layer 0: Eye-level undergrowth & bushy saplings
-      if (Math.random() > 0.1) {
-        const x = 13 + Math.random() * 6;
-        const jitterZ = z + (Math.random() - 0.5) * 7;
-        treeContainer.add(createVariedTree(0.8, 1.7, x, jitterZ, true));
-      }
-      // Layer 1: Roadside mature fir trees
-      if (Math.random() > 0.15) {
-        const x = 16 + Math.random() * 6;
-        const jitterZ = z + (Math.random() - 0.5) * 8;
-        treeContainer.add(createVariedTree(1.8, 3.2, x, jitterZ));
-      }
-      // Layer 2: Mid forest canopy
-      if (Math.random() > 0.2) {
-        const x = 25 + Math.random() * 9;
-        const jitterZ = z + (Math.random() - 0.5) * 10;
-        treeContainer.add(createVariedTree(2.6, 4.2, x, jitterZ));
-      }
-      // Layer 3: Deep forest canopy
-      if (Math.random() > 0.25) {
-        const x = 38 + Math.random() * 12;
-        const jitterZ = z + (Math.random() - 0.5) * 12;
-        treeContainer.add(createVariedTree(3.4, 5.2, x, jitterZ));
-      }
-      // Layer 4: Distant forest hillside
-      if (Math.random() > 0.35) {
-        const x = 54 + Math.random() * 16;
-        const jitterZ = z + (Math.random() - 0.5) * 14;
-        treeContainer.add(createVariedTree(4.2, 6.2, x, jitterZ));
+    for (let along = 10; along < 380; along += 9) {
+      for (const side of [-1, 1]) {
+        for (const layer of layers) {
+          if (Math.random() > layer.chance) continue;
+          const tree = createVariedTree(layer.min, layer.max, layer.under);
+          tree.userData.slot = {
+            along: along + (Math.random() - 0.5) * 6,
+            lateral: side * (layer.lateral + Math.random() * layer.spread),
+            yaw: Math.random() * Math.PI * 2
+          };
+          tree.visible = false;
+          group.add(tree);
+          treePool.push(tree);
+        }
       }
     }
   } catch (err) {
@@ -550,15 +530,8 @@ function addWindTurbines(group, turbineArray) {
     { x: -130, z: -500 },
     { x: 90, z: -580 },
   ];
-  
-  const tiledTurbines = [];
-  for (const pos of turbinePositions) {
-    for (let copy = 0; copy < LOOP_SEGMENTS; copy++) {
-      tiledTurbines.push({ x: pos.x, z: pos.z - copy * SCENERY_LOOP_LENGTH });
-    }
-  }
 
-  for (const pos of tiledTurbines) {
+  for (const pos of turbinePositions) {
     const turbineGroup = new THREE.Group();
     
     const poleGeometry = new THREE.CylinderGeometry(0.3, 0.5, 25, 8);
@@ -594,17 +567,3 @@ function addWindTurbines(group, turbineArray) {
   }
 }
 
-function addGridFloor(group) {
-  const floorWidth = 1200;
-  const floorLength = SCENERY_LOOP_LENGTH * (LOOP_SEGMENTS + 1);
-  const floorGeometry = new THREE.PlaneGeometry(floorWidth, floorLength);
-  const floorMaterial = new THREE.MeshBasicMaterial({ 
-    color: 0x1a2117,
-    side: THREE.DoubleSide
-  });
-  
-  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.set(0, -0.1, -floorLength / 2);
-  group.add(floor);
-}

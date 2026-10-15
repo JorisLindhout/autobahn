@@ -197,8 +197,9 @@ export class Weather {
         this.seedDrop(i, false);
       }
 
-      this.dummy.position.set(cam.x + this.ox[i], this.oy[i], cam.z + this.oz[i]);
-      this.dummy.lookAt(cam.x, this.oy[i], cam.z);
+      const y = this.oy[i] + (cam.y - 1.5);
+      this.dummy.position.set(cam.x + this.ox[i], y, cam.z + this.oz[i]);
+      this.dummy.lookAt(cam.x, y, cam.z);
       this.dummy.scale.set(1, 1, 1);
       this.dummy.updateMatrix();
       this.mesh.setMatrixAt(i, this.dummy.matrix);

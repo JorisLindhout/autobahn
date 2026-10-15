@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Controls } from './controls.js';
+import { Track } from './track.js';
 import { Road } from './road.js';
 import { Traffic } from './traffic.js';
 import { Cockpit } from './cockpit.js';
@@ -23,10 +24,13 @@ export class Game {
     );
     
     this.controls = new Controls();
+    this.track = new Track();
     this.road = new Road(this.scene, this.renderer);
     this.traffic = new Traffic(this.scene);
     this.cockpit = new Cockpit(this.camera);
     this.collision = new Collision();
+    this.cameraPitch = 0;
+    this.relHeading = 0;
     
     this.gameState = 'title';
     this.speed = 0;
@@ -104,7 +108,7 @@ export class Game {
   }
   
   setupScene() {
-    this.camera.position.set(0, 1.5, 0);
+    this.camera.position.set(0, this.track.playerY + 1.5, 0);
     this.camera.rotation.set(0, 0, 0);
     
     // Realistic 80s overcast Autobahn atmosphere with distant horizon haze
@@ -143,6 +147,7 @@ export class Game {
     this.scene.add(this.camera);
 
     this.road.create();
+    this.road.sync(this.track);
   }
   
   start() {
@@ -155,14 +160,18 @@ export class Game {
     this.shoulderTimer = 0;
     this.isOnShoulder = false;
     this.crashTimer = 0;
+    this.cameraPitch = 0;
+    this.relHeading = 0;
 
     if (this.shoulderHazardEl) {
       this.shoulderHazardEl.classList.remove('active');
       this.shoulderHazardEl.style.opacity = '0';
     }
     
+    this.track.reset();
     this.road.reset();
-    this.traffic.reset();
+    this.road.sync(this.track);
+    this.traffic.reset(this.track);
     this.controls.enable();
     this.cockpit.show();
     this.cockpit.repairWindshield();
@@ -220,6 +229,34 @@ export class Game {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }
+
+  applyCamera(deltaTime) {
+    const lookAhead = 18;
+    const here = this.track.sample(0, 0);
+    const hereY = here.y;
+    const hereX = here.x;
+    const hereZ = here.z;
+    const ahead = this.track.sample(-lookAhead, 0);
+    const horiz = Math.hypot(ahead.x - hereX, ahead.z - hereZ);
+    // Uphill (ahead.y > here.y) → positive rotation.x, which looks up in Three.js.
+    const slope = Math.atan2(ahead.y - hereY, Math.max(0.001, horiz));
+    const follow = 1 - Math.exp(-14 * deltaTime);
+    this.cameraPitch += (slope - this.cameraPitch) * follow;
+
+    const pitch = this.cameraPitch;
+    this.camera.position.x = this.playerX;
+    this.camera.position.y = this.track.playerY + 1.5 * Math.cos(pitch);
+    this.camera.position.z = 1.5 * Math.sin(pitch);
+    this.camera.rotation.set(pitch, 0, 0);
+  }
+
+  driveTrack(deltaTime) {
+    this.track.advance(this.speed * deltaTime);
+    this.road.update(deltaTime, this.speed, this.track);
+    this.traffic.update(deltaTime, this.speed, this.gameTime, this.track);
+    updateScenery(deltaTime, this.speed, this.track, this.sky);
+    this.applyCamera(deltaTime);
+  }
   
   update(deltaTime) {
     if (this.gameState === 'crashing') {
@@ -236,9 +273,7 @@ export class Game {
       this.cockpit.cockpitGroup.position.y = joltY;
       this.cockpit.cockpitGroup.position.x = joltX;
 
-      this.road.update(deltaTime, this.speed);
-      this.traffic.update(deltaTime, this.speed, this.gameTime);
-      updateScenery(deltaTime, this.speed);
+      this.driveTrack(deltaTime);
       this.updateWeather(deltaTime);
 
       if (this.crashTimer >= this.crashDuration) {
@@ -247,7 +282,13 @@ export class Game {
       return;
     }
 
-    if (this.gameState !== 'playing') return;
+    if (this.gameState !== 'playing') {
+      this.road.sync(this.track);
+      this.traffic.poseCars(this.track);
+      updateScenery(deltaTime, 0, this.track, this.sky);
+      this.applyCamera(deltaTime);
+      return;
+    }
     
     this.gameTime += deltaTime;
     
@@ -261,9 +302,16 @@ export class Game {
     const maxX = (this.roadWidth / 2) + 1.5;
     
     this.playerX += steerInput * steerSpeed * deltaTime;
+    // Unwind keeps the camera aimed down the road. Accumulate the yaw the road took
+    // without you so no-steer runs wide; bleed it off on straights so you don't stay diagonal.
+    this.relHeading -= this.track.playerCurve * this.speed * deltaTime;
+    this.relHeading += steerInput * 1.2 * deltaTime;
+    if (Math.abs(this.track.playerCurve) < 0.0002) {
+      this.relHeading *= Math.exp(-4 * deltaTime);
+    }
+    this.relHeading = THREE.MathUtils.clamp(this.relHeading, -0.65, 0.65);
+    this.playerX += Math.sin(this.relHeading) * this.speed * deltaTime;
     this.playerX = Math.max(-maxX, Math.min(maxX, this.playerX));
-    
-    this.camera.position.x = this.playerX;
 
     // Shoulder driving state and friction
     this.isOnShoulder = Math.abs(this.playerX) > 5.1;
@@ -300,12 +348,8 @@ export class Game {
     
     const shoulderRatio = this.shoulderTimer / this.maxShoulderTime;
     this.cockpit.update(steerInput, this.speed, this.isOnShoulder, shoulderRatio);
-    
-    this.road.update(deltaTime, this.speed);
-    
-    this.traffic.update(deltaTime, this.speed, this.gameTime);
-    
-    updateScenery(deltaTime, this.speed);
+
+    this.driveTrack(deltaTime);
     this.updateWeather(deltaTime);
     
     const collision = this.collision.check(
